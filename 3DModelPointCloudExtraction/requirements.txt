@@ -1,0 +1,17 @@
+# venv: C:\venvs\planefit (Python 3.12) -- shared with
+# ../PointCloudElaboration/OcTreeVoxel and ../PointCloudElaboration/SolarIrradianceCorrection,
+# so the whole chain from point cloud to .osm runs from one interpreter.
+#
+#   py -3.12 -m venv C:\venvs\planefit
+#   C:\venvs\planefit\Scripts\python.exe -m pip install -r requirements.txt
+#
+# openstudio is needed by to_openstudio.py / assign_u_to_osm.py / show_osm.py only.
+# open3d + pyvista + vtk are the viewers and the box-fitting geometry.
+# rosbags is needed only when reading a cloud straight from a rosbag2 folder.
+numpy
+scipy
+open3d
+pyvista
+vtk
+openstudio
+rosbags

@@ -1,0 +1,16 @@
+# venv: C:\venvs\planefit (Python 3.12 -- open3d has no cp313 wheel as of
+# open3d 0.19.0). Reuses the same venv as Thesis/OpenStudioModel/fit_planes.py
+# since fit_closed_planes.py needs open3d/opencv for RANSAC; aligned_octree.py
+# itself only needs rosbags + numpy but shares the venv for convenience.
+# view_voxels.py needs pyvista (pulls in VTK), same as OcTree's viewer;
+# imageio is pyvista's GIF writer backend (--orbit-gif only).
+#
+#   py -3.12 -m venv C:\venvs\planefit
+#   C:\venvs\planefit\Scripts\python.exe -m pip install -r requirements.txt
+rosbags
+open3d
+opencv-python
+numpy
+scipy
+pyvista
+imageio

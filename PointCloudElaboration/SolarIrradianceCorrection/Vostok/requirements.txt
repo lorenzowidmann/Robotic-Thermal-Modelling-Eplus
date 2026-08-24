@@ -1,0 +1,18 @@
+# venv: C:\venvs\planefit (Python 3.12) -- the same venv as ../OcTreeVoxel,
+# deliberately shared: this script's prerequisites (voxels.npz /
+# transform.json / planes_aligned.json) are produced by that pipeline, so
+# both run from one interpreter.
+#
+# solar_shadow_voxel.py itself only needs these two: numpy for the geometry
+# and rosbags for load_merged_cloud (re-reading the same filtered bag
+# OcTreeVoxel used, to build VOSTOK's shadow point cloud). open3d/opencv/
+# pyvista are NOT needed here -- they belong to ../OcTreeVoxel's own
+# RANSAC + viewer steps.
+#
+#   py -3.12 -m venv C:\venvs\planefit
+#   C:\venvs\planefit\Scripts\python.exe -m pip install -r requirements.txt
+#
+# The heavy lifting is done by vostok.exe (C++, built separately -- see
+# README.md "Building VOSTOK"); it is not a Python dependency.
+numpy
+rosbags

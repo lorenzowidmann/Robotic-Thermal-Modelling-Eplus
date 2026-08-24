@@ -1,0 +1,6 @@
+# graphify's generated knowledge-graph output -- local only, never commit/push.
+graphify-out/
+
+# Python bytecode cache
+__pycache__/
+*.py[cod]

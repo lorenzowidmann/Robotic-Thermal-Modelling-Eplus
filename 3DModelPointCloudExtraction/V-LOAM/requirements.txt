@@ -1,0 +1,11 @@
+# Prep step only: the Python scripts here sync and dump; the actual V-LOAM
+# depth association and VO run in MATLAB (lidar_depth_association_test.m,
+# vloam_depth_vo.m), which need no Python.
+#
+#   py -3.12 -m venv C:\venvs\planefit
+#   C:\venvs\planefit\Scripts\python.exe -m pip install -r requirements.txt
+#
+# rosbags is used through ../../TimeSyncCheck/sync_manifest.py to read the
+# LiDAR bag's poses and scans.
+numpy
+rosbags

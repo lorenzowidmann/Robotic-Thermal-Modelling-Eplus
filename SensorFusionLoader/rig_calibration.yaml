@@ -1,0 +1,97 @@
+# Canonical rig calibration: FLIR + ZED intrinsics, LiDAR<->camera extrinsics.
+#
+# Single source of truth for anything that needs to project LiDAR points into
+# a camera image or read a camera's own K/distortion. Edit this file (not
+# code) when a calibration is redone -- rig_calibration.py just loads it.
+#
+# Sources (Obsidian ThesisMD/ClaudeNotes, chosen as canonical per the user --
+# each is a more carefully vetted/verdict-bearing result than the raw JSON
+# files of the same name under this folder, which come from different
+# tool/dataset runs and are kept only for traceability, not used here):
+#   - risultato_calibrazione_intrinseca_flir_vue_pro_r.md
+#   - risultato_calibrazione_intrinseca_zed_2i.md
+#   - risultato_calibrazione_estrinseca_lidar_flir.md
+#   - risultato_calibrazione_estrinseca_lidar_zed.md
+
+schema: rig_calibration/v1
+
+flir:
+  camera: "FLIR Vue Pro R 336"
+  source: risultato_calibrazione_intrinseca_flir_vue_pro_r.md
+  date: 2026-07-31
+  tool: "MATLAB estimateCameraParameters, no-skew model (recommended in the note's own verdict)"
+  # Images were rotated 180 degrees before board detection during BOTH this
+  # intrinsic calibration and the LiDAR<->FLIR extrinsic below (camera is
+  # mounted upside down on the rover) -- any FLIR frame fed through this
+  # calibration must be rotated 180 degrees first (see
+  # Flir/session9_only_rot180/*.npy for an already-rotated example).
+  rotated_180_before_calibration: true
+  image_size: {width: 336, height: 256}
+  fx: 570.4796
+  fy: 545.4275
+  cx: 149.1501
+  cy: 117.0047
+  skew: 0.0
+  dist_coeffs: [-0.4241, -0.1241, -0.0053, 0.0025, 0.0]  # k1, k2, p1, p2, k3 (k3 not fit, 0)
+  caveats:
+    - "cx/cy weakly constrained: corner detections only covered the central ~45% of the sensor (u=110-260, v=15-190 of 336x256). Reliable near frame center, less so near edges/corners."
+    - "k2 unstable across iterations of this calibration campaign (-8.06 to +0.14 range seen); k1 and fx/fy are the trustworthy parameters (validated independently against the documented 32x26 deg FOV, within 0.1 deg)."
+    - "Differs from Calibration/flir_intrinsics.json (fx=567.38, OpenCV tool, different image subset, generated 2026-07-27) -- both are plausible, this MATLAB no-skew result is used here per the note's explicit verdict."
+
+zed:
+  camera: "ZED 2i (right eye, UVC)"
+  source: risultato_calibrazione_intrinseca_zed_2i.md
+  date: 2026-07-25
+  tool: "zed_intrinsic_calib.py (OpenCV), checkerboard 5x3 inner corners, 44.99mm squares"
+  # Calibrated at 1280x720; actual recording sessions use ZED HD1080
+  # (1920x1080, see zed_record.py's metadata.json "resolution": "HD1080").
+  # rig_calibration.py's zed_K_for(width, height) rescales fx/fy/cx/cy
+  # linearly for the real capture size -- distortion coeffs are
+  # resolution-independent (operate on normalized coordinates) and are used
+  # as-is.
+  calibration_image_size: {width: 1280, height: 720}
+  fx: 701.0134647039228
+  fy: 704.6331039205826
+  cx: 670.4810957875746
+  cy: 376.2949726575338
+  dist_coeffs: [-0.15916986709798664, -0.0045968330493223455, 0.0005737602698878021, -0.000006308827609076404, 0.020632468245902112]
+  caveats:
+    - "Differs from Calibration/zed_right_intrinsics.json (fx=1413.57 at native 1920x1080, 8x6 checkerboard, 25mm squares, generated 2026-07-30) -- an independent, later calibration run. This note's result is used here per its explicit verdict (\"ragionevole e utilizzabile cosi' com'e'\"); the JSON is kept for traceability, not used."
+
+lidar_to_flir:
+  source: risultato_calibrazione_estrinseca_lidar_flir.md
+  date: 2026-08-03
+  tool: "LVT2Calib extrinsic_calib_l2c, min3d fit, 6 clean poses (01,02,03,05,07,08) of 10 collected"
+  session: Exttr_tryN
+  # Row-major 4x4, maps a point in the LiDAR/laser frame to the FLIR camera
+  # frame: p_cam = T @ [x, y, z, 1]  (p_cam then goes through flir.K/dist to
+  # get pixels). Requires the SAME 180-degree FLIR image rotation used to
+  # derive it (see flir.rotated_180_before_calibration above).
+  T_lidar_to_cam:
+    - [ 0.048992,   -0.998798, -0.00174722,  -0.107859]
+    - [ 0.0621242,   0.00479317, -0.998057,  -0.0426556]
+    - [ 0.996865,    0.0487882,  0.0622843,  -0.0135286]
+    - [ 0.0,         0.0,        0.0,         1.0]
+  rmse_3d_m: 0.0581397
+  reproj_px: 0.844049
+  caveats:
+    - "Only 6/10 poses used (below the 9-pose literature minimum); RMSE with 6 clean poses (5.8cm) matched a 3-pose isolated test (5.7cm) and was much better than all 10 poses (18.4cm) -- the 4 excluded poses (04,06,09,11) had identifiable per-pose issues (short capture windows / low-contrast preprocessing), not just noise."
+    - "6cm RMSE is fine for qualitative/zone-level thermal-bridge analysis, not for precise pixel-perfect edges."
+
+lidar_to_zed:
+  source: risultato_calibrazione_estrinseca_lidar_zed.md
+  date: 2026-08-03
+  tool: "LVT2Calib extrinsic_calib_l2c, min3d fit, 8 clean poses (01,02,03,05,07,08,09,10) of 10 collected"
+  session: Exttr_tryN
+  # Same convention as lidar_to_flir.T_lidar_to_cam, no image rotation needed
+  # for ZED (orientation confirmed correct by the user during this session).
+  T_lidar_to_cam:
+    - [ 0.00758424, -0.999954,  -0.00584239, -0.0992363]
+    - [-0.0387419,   0.00554434, -0.999234,   0.0888694]
+    - [ 0.99922,     0.00780478, -0.0386981, -0.000231952]
+    - [ 0.0,         0.0,         0.0,        1.0]
+  rmse_3d_m: 0.0678418
+  reproj_px: 2.17729
+  caveats:
+    - "8/10 poses used (below the 9-pose literature minimum, by one); improvement to 8 poses was monotonic and confirmed by repeated T7 runs (10->9->8->7 poses), not just a shape-check heuristic."
+    - "6.8cm RMSE 3D is slightly worse than the FLIR pair (5.8cm) but 2D reprojection is comparable order of magnitude (1.7-2.2px vs 0.66-0.84px for FLIR)."

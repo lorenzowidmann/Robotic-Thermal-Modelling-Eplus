@@ -1,0 +1,4 @@
+# No third-party dependencies: generate_board_template.py uses only the Python
+# standard library (argparse, math, pathlib). Any Python 3.10+ interpreter works.
+#
+#   py generate_board_template.py --outdir <output_folder>

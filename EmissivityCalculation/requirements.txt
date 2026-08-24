@@ -1,0 +1,16 @@
+torch
+transformers
+opencv-python
+numpy
+pandas
+pillow
+scikit-image  # SLIC superpixels (classify_session.py)
+# pyzed is NOT pip-installable: it ships with the ZED SDK.
+# Install the SDK from https://www.stereolabs.com/developers/release/
+# then run the SDK's get_python_api.py (requires NVIDIA GPU + CUDA).
+
+# project_to_flir.py needs rosbags + pyyaml too (reads the LiDAR bag +
+# Calibration/rig_calibration.yaml) -- these are not in this venv by
+# convention (kept with SensorFusion's rosbag tooling instead). Run
+# project_to_flir.py with the SensorFusion venv (add scikit-image's absence
+# there is fine, it only reads classify_session.py's saved output, no CLIP).

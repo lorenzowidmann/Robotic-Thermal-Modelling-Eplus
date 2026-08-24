@@ -1,0 +1,20 @@
+# Stage 1 -- classify_openings.py. Run with C:\venvs\emissivity.
+# CLIP is gone: Mask2Former does segmentation and classification in one pass.
+torch
+torchvision         # AutoImageProcessor requires it; transformers refuses to load without
+transformers
+opencv-python
+numpy
+pillow
+scipy               # geometry.py's merge uses ndimage.label / binary_dilation
+
+# Stage 1 with --bag (the metric door check) additionally needs the bag reader.
+# Only imported when --bag is given, so a pixel-only run does not need it.
+rosbags
+
+# Stage 2 -- opening_voxel_consensus.py. Reads the LiDAR bag and
+# rig_calibration.yaml, needs no torch. Run with C:\venvs\sensorfusion.
+# Listed separately on purpose: same split as project_to_flir.py.
+#   rosbags
+#   pyyaml
+#   numpy

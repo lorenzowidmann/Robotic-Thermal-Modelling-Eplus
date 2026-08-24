@@ -1,0 +1,12 @@
+# venv: C:\venvs\planefit (Python 3.12) -- shared with ../OcTreeVoxel and with
+# ../../3DModelPointCloudExtraction/assign_u_to_osm.py, so the whole chain from
+# voxels to .osm runs from one interpreter.
+#
+#   py -3.12 -m venv C:\venvs\planefit
+#   C:\venvs\planefit\Scripts\python.exe -m pip install -r requirements.txt
+#
+# Vostok/ has its own requirements.txt (numpy + rosbags only) -- it is a
+# separate, currently unconnected branch, see Vostok/README.md.
+numpy
+pandas
+pvlib

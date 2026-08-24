@@ -1,0 +1,6 @@
+# Per-run output (thermal_voxels_*.csv / .ply and the ARPAV extract). Large,
+# and only valid for the session + capture instant they were produced for.
+solar_shadow_voxel_out/
+
+__pycache__/
+*.py[cod]

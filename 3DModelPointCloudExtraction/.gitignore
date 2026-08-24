@@ -1,0 +1,13 @@
+# Ignore everything except code and this doc; data/outputs stay local only.
+*
+
+!*/
+!.gitignore
+!README.md
+!requirements.txt
+!*.m
+!*.py
+
+# V-LOAM depth association output -- always local only, overrides the *.m/*.py
+# exceptions above so nothing generated in here ever gets committed.
+V-LOAM/depth_assoc_out/**

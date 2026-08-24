@@ -1,0 +1,3 @@
+numpy
+matplotlib  # only needed for --show
+flyr  # ThermalData.py: decode radiometric JPEGs from the thermal camera

@@ -1,0 +1,12 @@
+# zed_record.py (--backend uvc, default fallback) and extract_fullrate_frames.py
+opencv-python
+
+# zed_record.py --backend sdk (optional, full stereo SVO2 master)
+# pyzed (the ZED SDK Python API) is NOT pip-installable here -- install it by
+# running the ZED SDK's get_python_api.py after installing the SDK itself
+# (https://www.stereolabs.com/developers/release/). Requires an NVIDIA GPU
+# with CUDA. Listed for reference only.
+# pyzed
+
+# extract_fullrate_frames.py also needs the ffprobe binary on PATH (part of
+# ffmpeg) -- not a pip package.

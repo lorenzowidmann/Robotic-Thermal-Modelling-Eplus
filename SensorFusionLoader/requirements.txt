@@ -1,0 +1,9 @@
+# Shared loader used by EmissivityCalculation/project_to_flir.py and
+# RadiometricCalibration/correct_session.py -- installed into whichever venv
+# imports it (C:\venvs\sensorfusion in the documented runs).
+#
+#   py -3.12 -m venv C:\venvs\sensorfusion
+#   C:\venvs\sensorfusion\Scripts\python.exe -m pip install -r requirements.txt
+numpy
+opencv-python
+pyyaml

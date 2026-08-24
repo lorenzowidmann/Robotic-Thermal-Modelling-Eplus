@@ -1,0 +1,9 @@
+# capture_zed_right.py only -- the calibration itself runs in MATLAB
+# (IntCalibration_ZED.m / IntCalibration_Flir.m), which needs no Python.
+#
+#   py -3.12 -m venv C:\venvs\intcalib
+#   C:\venvs\intcalib\Scripts\python.exe -m pip install -r requirements.txt
+#
+# The ZED 2i is read over plain UVC with OpenCV -- no ZED SDK, no pyzed, no GPU.
+numpy
+opencv-python

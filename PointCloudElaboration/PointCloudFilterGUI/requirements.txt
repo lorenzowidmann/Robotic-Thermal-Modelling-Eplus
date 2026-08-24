@@ -1,0 +1,5 @@
+numpy
+scipy          # optional but recommended -- enables true kNN-based SOR (same as PointCloudView)
+matplotlib     # embedded CPU preview (tkinter is stdlib, ships with Python)
+pyvista        # "Open smooth 3D view" window, GPU-accelerated (same renderer as PointCloudView)
+rosbags        # rosbag2 .db3 read + write

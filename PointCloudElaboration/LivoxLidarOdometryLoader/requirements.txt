@@ -1,0 +1,6 @@
+rosbags
+numpy
+
+# No scipy on purpose: the quaternion slerp is written out in
+# livox_odometry_loader.py so this module imports in the consensus venv,
+# which has rosbags + numpy + pyyaml and nothing else.
