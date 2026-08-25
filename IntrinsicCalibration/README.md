@@ -32,4 +32,7 @@ file come from a separate [LVT2Calib](https://github.com/Clothooo/lvt2calib)
 board session — see `../LVTCalibBoardGenearation/`.
 
 Results feed `../SensorFusionLoader/rig_calibration.yaml`, which is where every
-downstream module reads intrinsics from.
+downstream module reads intrinsics from. Both `flir:` and `zed:` blocks there
+are MATLAB (`estimateCameraParameters`, no-skew) results, as of 2026-08-02
+(ZED) / 2026-07-31 (FLIR) — not the OpenCV scripts under `../Thesis/Calibration/`,
+which are kept only for cross-check/traceability.

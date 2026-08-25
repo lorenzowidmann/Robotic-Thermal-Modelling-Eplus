@@ -9,7 +9,13 @@
 # files of the same name under this folder, which come from different
 # tool/dataset runs and are kept only for traceability, not used here):
 #   - risultato_calibrazione_intrinseca_flir_vue_pro_r.md
+#     (produced by IntrinsicCalibration/IntCalibration_Flir.m)
 #   - risultato_calibrazione_intrinseca_zed_2i.md
+#     (SUPERSEDED: the zed block below now carries the
+#      IntrinsicCalibration/IntCalibration_ZED.m result of 2026-08-02, the
+#      same one lvt2calib/data/camera_info/zed_right_intrinsic.yaml has been
+#      using since that date -- this file was simply the last one left on the
+#      obsolete 1280x720 values)
 #   - risultato_calibrazione_estrinseca_lidar_flir.md
 #   - risultato_calibrazione_estrinseca_lidar_zed.md
 
@@ -19,7 +25,7 @@ flir:
   camera: "FLIR Vue Pro R 336"
   source: risultato_calibrazione_intrinseca_flir_vue_pro_r.md
   date: 2026-07-31
-  tool: "MATLAB estimateCameraParameters, no-skew model (recommended in the note's own verdict)"
+  tool: "MATLAB estimateCameraParameters, no-skew model (IntrinsicCalibration/IntCalibration_Flir.m), checkerboard 45mm squares"
   # Images were rotated 180 degrees before board detection during BOTH this
   # intrinsic calibration and the LiDAR<->FLIR extrinsic below (camera is
   # mounted upside down on the rover) -- any FLIR frame fed through this
@@ -40,23 +46,28 @@ flir:
 
 zed:
   camera: "ZED 2i (right eye, UVC)"
-  source: risultato_calibrazione_intrinseca_zed_2i.md
-  date: 2026-07-25
-  tool: "zed_intrinsic_calib.py (OpenCV), checkerboard 5x3 inner corners, 44.99mm squares"
-  # Calibrated at 1280x720; actual recording sessions use ZED HD1080
-  # (1920x1080, see zed_record.py's metadata.json "resolution": "HD1080").
-  # rig_calibration.py's zed_K_for(width, height) rescales fx/fy/cx/cy
-  # linearly for the real capture size -- distortion coeffs are
-  # resolution-independent (operate on normalized coordinates) and are used
-  # as-is.
-  calibration_image_size: {width: 1280, height: 720}
-  fx: 701.0134647039228
-  fy: 704.6331039205826
-  cx: 670.4810957875746
-  cy: 376.2949726575338
-  dist_coeffs: [-0.15916986709798664, -0.0045968330493223455, 0.0005737602698878021, -0.000006308827609076404, 0.020632468245902112]
+  source: IntrinsicCalibration/IntCalibration_ZED.m
+  date: 2026-08-02
+  tool: "MATLAB estimateCameraParameters, no-skew model (IntCalibration_ZED.m), checkerboard 8x6 inner corners, 25mm squares, 25/25 images used"
+  # Calibrated at native 1920x1080 -- the SAME resolution the recording
+  # sessions use (see zed_record.py's metadata.json "resolution": "HD1080"),
+  # so rig_calibration.py's zed_K_for(1920, 1080) is now a no-op rescale.
+  # Distortion coeffs are resolution-independent (normalized-coordinate
+  # model) and are used as-is at any capture size.
+  calibration_image_size: {width: 1920, height: 1080}
+  fx: 1412.3362
+  fy: 1414.4716
+  cx: 1012.8503
+  cy: 569.7181
+  skew: 0.0
+  dist_coeffs: [-0.1558253, 0.009026829, 0.0006208599, 0.0005667587, 0.0]  # k1, k2, p1, p2, k3 (k3 not fit, 0)
+  mean_reproj_px: 0.2151
   caveats:
-    - "Differs from Calibration/zed_right_intrinsics.json (fx=1413.57 at native 1920x1080, 8x6 checkerboard, 25mm squares, generated 2026-07-30) -- an independent, later calibration run. This note's result is used here per its explicit verdict (\"ragionevole e utilizzabile cosi' com'e'\"); the JSON is kept for traceability, not used."
+    - "Replaces the previous 1280x720 result (fx=701.01, zed_intrinsic_calib.py, 5x3 inner corners, 44.99mm squares, 2026-07-25) which was never cross-checked: rescaled to 1080p it implies fx=1051.5 and FOV_h=84.8 deg, ~34% off this fit and matching no ZED 2i lens variant. This MATLAB result implies FOV_h=68.41 deg / FOV_v=41.79 deg, consistent with the 4mm-lens ZED 2i."
+    - "Independently confirmed by Calibration/zed_right_intrinsics.json (OpenCV, same 25 images, fx=1413.57 fy=1415.79 cx=1011.19 cy=569.23): the two tools agree to <1.3px on every parameter."
+    - "cx/cy sit +2.75% of width/height off the frame centre and corners span only 65% of the frame area (u 106-1733, v 136-969), so k1/k2 are extrapolated rather than measured near the edges."
+    - "3 images flagged as high-error outliers (right_055 0.437px, right_058 0.436px, right_067 0.368px) but kept -- overall mean is 0.2151px."
+    - "The lidar_to_zed extrinsic below is CONSISTENT with these intrinsics: lvt2calib/data/camera_info/zed_right_intrinsic.yaml was already updated to this exact MATLAB result on 2026-08-02 (old 1280x720 file kept as zed_right_intrinsic_OLD_backup_20260802.yaml), and the Exttr_tryN extrinsic session ran 2026-08-03, i.e. after. No re-solve needed."
 
 lidar_to_flir:
   source: risultato_calibrazione_estrinseca_lidar_flir.md
