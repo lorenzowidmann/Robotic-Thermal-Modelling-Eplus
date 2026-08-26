@@ -1,0 +1,35 @@
+<launch>
+  <!-- Publishes FLIR RJPG frames as sensor_msgs/Image (bgr8) on image_topic,
+       to feed LVT2Calib's thermal cam_pattern (image_tp:=<image_topic>). -->
+
+  <arg name="image_dir"        default="/data/bags/flir_session"/>
+  <arg name="pattern"          default=""/>                        <!-- e.g. FLIR*.jpg -->
+  <arg name="image_topic"      default="/thermal_cam/thermal_image"/>
+  <arg name="frame_id"         default="flir_thermal"/>
+  <arg name="image_mode"       default="embedded"/>                <!-- embedded | raw -->
+  <arg name="colormap"         default="none"/>                    <!-- raw mode only -->
+  <arg name="raw_byteswap"     default="false"/>
+  <arg name="exiftool"         default="exiftool"/>
+  <arg name="fps"              default="5.0"/>
+  <arg name="rate_multiplier"  default="1.0"/>
+  <arg name="stamp_mode"       default="now"/>                     <!-- now | sequential | exif -->
+  <arg name="loop"             default="true"/>
+  <arg name="camera_info_file" default=""/>                        <!-- optional, NOT used by LVT2Calib -->
+
+  <node name="flir_frame_publisher" pkg="flir_frame_publisher"
+        type="flir_frame_publisher.py" output="screen">
+    <param name="image_dir"        value="$(arg image_dir)"/>
+    <param name="pattern"          value="$(arg pattern)"/>
+    <param name="image_topic"      value="$(arg image_topic)"/>
+    <param name="frame_id"         value="$(arg frame_id)"/>
+    <param name="image_mode"       value="$(arg image_mode)"/>
+    <param name="colormap"         value="$(arg colormap)"/>
+    <param name="raw_byteswap"     value="$(arg raw_byteswap)"/>
+    <param name="exiftool"         value="$(arg exiftool)"/>
+    <param name="fps"              value="$(arg fps)"/>
+    <param name="rate_multiplier"  value="$(arg rate_multiplier)"/>
+    <param name="stamp_mode"       value="$(arg stamp_mode)"/>
+    <param name="loop"             value="$(arg loop)"/>
+    <param name="camera_info_file" value="$(arg camera_info_file)"/>
+  </node>
+</launch>

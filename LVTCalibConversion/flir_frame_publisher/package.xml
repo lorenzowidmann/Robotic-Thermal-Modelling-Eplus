@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>flir_frame_publisher</name>
+  <version>0.1.0</version>
+  <description>
+    Publishes FLIR thermal frames (radiometric JPEG / RJPG) from a folder as
+    sensor_msgs/Image (bgr8) so LVT2Calib's cam_pattern node (isRGB=false) can
+    consume them. Sibling of zed_frame_publisher, adapted to RJPG input
+    (embedded colormapped JPEG, or raw 16-bit radiometric via exiftool).
+  </description>
+
+  <maintainer email="lorenzo.widmann@gmail.com">Lorenzo Widmann</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+</package>

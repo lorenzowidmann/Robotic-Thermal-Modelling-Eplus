@@ -1,0 +1,25 @@
+<launch>
+  <!-- Publishes zed_record.py session frames as sensor_msgs/Image (bgr8) on
+       image_topic, to feed LVT2Calib's cam_pattern (image_tp:=<image_topic>). -->
+
+  <arg name="session_dir"      default="/data/bags/zed_session"/>
+  <arg name="image_topic"      default="/zed_right/image_raw"/>
+  <arg name="frame_id"         default="zed_right"/>
+  <arg name="source"           default="frames"/>      <!-- frames | mp4 -->
+  <arg name="stamp_mode"       default="absolute"/>    <!-- absolute | now -->
+  <arg name="rate_multiplier"  default="1.0"/>
+  <arg name="loop"             default="true"/>
+  <arg name="camera_info_file" default=""/>            <!-- optional, NOT used by LVT2Calib -->
+
+  <node name="zed_frame_publisher" pkg="zed_frame_publisher"
+        type="zed_frame_publisher.py" output="screen">
+    <param name="session_dir"      value="$(arg session_dir)"/>
+    <param name="image_topic"      value="$(arg image_topic)"/>
+    <param name="frame_id"         value="$(arg frame_id)"/>
+    <param name="source"           value="$(arg source)"/>
+    <param name="stamp_mode"       value="$(arg stamp_mode)"/>
+    <param name="rate_multiplier"  value="$(arg rate_multiplier)"/>
+    <param name="loop"             value="$(arg loop)"/>
+    <param name="camera_info_file" value="$(arg camera_info_file)"/>
+  </node>
+</launch>

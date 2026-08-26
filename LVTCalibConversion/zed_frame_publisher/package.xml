@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>zed_frame_publisher</name>
+  <version>0.1.0</version>
+  <description>
+    Publishes ZED 2i frames recorded by SensorFusion/zed_record.py (UVC backend)
+    as sensor_msgs/Image (bgr8) so LVT2Calib's camera pattern node can consume
+    them. Uses the per-frame t_offset_s from the session metadata.json to
+    reproduce real capture timing and absolute (started_utc + t_offset_s) stamps.
+  </description>
+
+  <maintainer email="lorenzo.widmann@gmail.com">Lorenzo Widmann</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+</package>
