@@ -11,6 +11,7 @@ FLIR RJPG frames) into a form **LVT2Calib** (ROS1/Noetic, runs in the
 | `convert_livox_bag.py` (+ `requirements.txt`) | Standalone Python script. Converts a ROS2 bag with `livox_ros_driver2/msg/CustomMsg` into a ROS1 `.bag`, remapping the message namespace to `livox_ros_driver` (v1) so `koide3/livox_to_pointcloud2`'s ROS1 branch accepts it. | Windows host, plain `pip` venv |
 | `zed_frame_publisher/` | ROS1 catkin package. Publishes ZED 2i frames recorded by `zed_record.py` (PNG session + `metadata.json`) as `sensor_msgs/Image`, for LVT2Calib's RGB `cam_pattern` node. | Inside `lvt2calib_gui` container |
 | `flir_frame_publisher/` | ROS1 catkin package. Publishes FLIR radiometric JPEG (RJPG) frames as `sensor_msgs/Image`, for LVT2Calib's thermal `cam_pattern` node. Sibling of `zed_frame_publisher`. | Inside `lvt2calib_gui` container |
+| `livox_hap_pattern.launch` | Launch file adding **Livox HAP** support to LVT2Calib, which upstream does not ship. Copy into `lvt2calib/launch/lidar/livox/`. | Inside `lvt2calib_gui` container |
 
 Each has its own README with full details (flags, defaults, why they were
 chosen against the lvt2calib source); this file is the map between them.
@@ -26,6 +27,13 @@ None of our raw captures are already in that form:
 - ZED and FLIR are recorded to **plain files** (PNG/mp4 + RJPG), not bags →
   `zed_frame_publisher` / `flir_frame_publisher` replay those files as live
   `sensor_msgs/Image` topics that LVT2Calib's `cam_pattern` nodes subscribe to.
+- The **HAP is not an upstream-supported LiDAR** in LVT2Calib (only Horizon,
+  Mid-70, Mid-40 and Avia are) → `livox_hap_pattern.launch` adds it. It is the
+  Horizon wrapper with `ns_=livox_hap` and `cloud_tp=/livox/points`; the Horizon
+  wrapper carries no hardware-specific parameters, so the copy is safe. The input
+  topic is `/livox/points` (`PointCloud2`, out of `livox_to_pointcloud2`), **not**
+  `/livox/lidar`. `livox_pattern.launch` also loads `rviz/$(arg ns_)_pattern.rviz`,
+  so a matching `livox_hap_pattern.rviz` must exist there or the rviz node errors.
 
 ## Typical flow
 

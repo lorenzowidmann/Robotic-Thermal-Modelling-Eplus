@@ -7,6 +7,10 @@ built for this thesis rather than the repo's stock one.
 Board: 100 × 70 cm, four circular holes of diameter 13 cm (radius 0.065 m),
 centred at (±0.15, ±0.15) m from the board centre.
 
+`TragetHoles/TragetHoles.STEP` is the CAD model of that board — the geometry the
+physical target was cut from, kept here so the templates and the real board can
+be traced back to one source.
+
 ## Usage
 
 ```powershell

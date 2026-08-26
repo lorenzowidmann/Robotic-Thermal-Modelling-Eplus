@@ -1,0 +1,36 @@
+<launch>
+
+    <arg name="ns_" default="livox_hap"/>
+    <arg name="use_passthrough_preprocess" default="false"/>
+    <arg name="cloud_tp" default="/livox/points"/>
+
+    <!-- Range passthrough X/Y/Z, inoltrati a livox_pattern.launch (29/07/2026).
+         Default = intero range di distanza di lavoro previsto per le 9 pose
+         (3.0-6.5 m su X), non una singola distanza fissa. Sovrascrivibili da
+         riga di comando, es.:
+         roslaunch lvt2calib livox_hap_pattern.launch use_passthrough_preprocess:=true px_min:=3.0 px_max:=6.5 -->
+    <arg name="px_min" default="3.0"/>
+    <arg name="px_max" default="6.5"/>
+    <arg name="py_min" default="-1.5"/>
+    <arg name="py_max" default="1.5"/>
+    <arg name="pz_min" default="0.0"/>
+    <arg name="pz_max" default="1.2"/>
+
+    <include file="$(find lvt2calib)/launch/point_cloud_accumulation.launch">
+        <arg name="cloud_in_pc2" value="$(arg cloud_tp)"/>
+        <arg name="acc_num" value="5"/>
+        <arg name="ns_" value="$(arg ns_)"/>
+    </include>
+
+    <include file="$(find lvt2calib)/launch/lidar/livox_pattern.launch">
+        <arg name="ns_" value="$(arg ns_)"/>
+        <arg name="use_passthrough_preprocess" value="$(arg use_passthrough_preprocess)"/>
+        <arg name="cloud_tp" value="$(arg cloud_tp)/acc_cloud"/>
+        <arg name="px_min" value="$(arg px_min)"/>
+        <arg name="px_max" value="$(arg px_max)"/>
+        <arg name="py_min" value="$(arg py_min)"/>
+        <arg name="py_max" value="$(arg py_max)"/>
+        <arg name="pz_min" value="$(arg pz_min)"/>
+        <arg name="pz_max" value="$(arg pz_max)"/>
+    </include>
+</launch>
