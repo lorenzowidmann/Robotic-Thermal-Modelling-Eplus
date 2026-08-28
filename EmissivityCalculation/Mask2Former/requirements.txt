@@ -1,0 +1,21 @@
+# classify_session_m2f.py. Run with C:\venvs\emissivity -- the same venv
+# ../classify_session.py and WindowsDoorsDetection/classify_openings.py use.
+torch
+torchvision         # AutoImageProcessor requires it; transformers refuses to load without
+transformers        # Mask2Former (segmentation) + CLIP (material)
+opencv-python       # connected components, integral image, contours, overlay
+numpy
+pillow
+
+# Pulled in by the parent package this module imports (../emissivity/), not
+# used directly here:
+pandas              # ../emissivity/table.py reads emissivity_table.csv with it
+scikit-image        # ../emissivity/segmentation.py imports slic at module scope,
+                    # and ../emissivity/__init__.py imports that module
+
+# NOT needed: SAM. Mask2Former replaces it as the segmenter.
+#
+# --crop-to-flir-fov (on by default) reads
+# ../../SensorFusionLoader/rig_calibration.yaml, which needs pyyaml. That path
+# is imported lazily, so --no-crop-to-flir-fov runs without it.
+pyyaml
