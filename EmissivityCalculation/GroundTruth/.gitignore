@@ -1,0 +1,7 @@
+# Derived from ground_truth.csv + the runs; regenerate with evaluate.py.
+comparison*.csv
+confusion_*.csv
+
+# NOT ignored, deliberately: ground_truth*.csv and eval_frames.txt are the hand
+# work this module exists to produce. They cost an hour each to recreate and
+# every future comparison is measured against them.

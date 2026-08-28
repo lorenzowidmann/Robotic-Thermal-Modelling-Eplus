@@ -1,0 +1,16 @@
+# Runs in C:\venvs\emissivity, but deliberately does not need it: neither
+# script loads a model. evaluate.py needs only numpy; annotate.py adds pillow
+# and tkinter (stdlib) for the viewer.
+numpy
+pillow              # annotate.py only -- reads the ZED PNG, scales the panels
+
+# NOT needed, and deliberately not imported:
+#   torch / transformers -- nothing here runs CLIP, SAM or Mask2Former.
+#   pandas               -- ../emissivity/table.py uses it, but importing that
+#                           module runs ../emissivity/__init__.py, which pulls
+#                           in .classifier (torch) and .segmentation
+#                           (scikit-image). gt_common.py reads
+#                           emissivity_table.csv with the stdlib csv module
+#                           instead, the same call m2f_materials/category_prior.py
+#                           makes, so the scorer stays runnable in a bare venv.
+#   opencv               -- pillow covers the crop/scale/tint the viewer needs.

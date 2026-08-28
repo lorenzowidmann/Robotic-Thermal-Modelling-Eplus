@@ -21,7 +21,7 @@ keeps solely the LiDAR points valid in BOTH cameras, so a region outside the
 FLIR frustum can never reach a FLIR pixel -- on this rig that frustum is ~16%
 of the ZED frame, so most of the CLIP calls used to be discarded downstream.
 There is no direct FLIR<->ZED calibration, but both extrinsics live in the
-LiDAR frame and compose; see Calibration/projection.py::flir_fov_bbox_in_zed.
+LiDAR frame and compose; see SensorFusionLoader/projection.py::flir_fov_bbox_in_zed.
 
 Output per frame, under <out-dir>/<flir_frame_stem>/:
     labels.npy    -- int32 HxW superpixel-id raster, ZED pixel grid, always
@@ -63,9 +63,24 @@ from emissivity import EmissivityTable, MaterialClassifier
 from emissivity.segmentation import superpixel_segments, sam_segments, segment_boxes
 from emissivity.zones import restrict_ranking, zone_of
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "Calibration"))
-from rig_calibration import load_rig_calibration
-from projection import flir_fov_bbox_in_zed
+
+def _find_root(start: Path) -> Path:
+    """Walk up until the directory holding SensorFusionLoader/ is found.
+
+    Was `sys.path.insert(0, .../"Calibration")` at module level, unconditionally
+    -- but that directory does not exist in this repo (the calibration loader
+    lives in SensorFusionLoader/), so every run of this script failed at import
+    time, even with --no-crop-to-flir-fov, before argparse ever saw --calibration.
+    Same fix, same reasoning, as Mask2Former/classify_session_m2f.py::_find_root:
+    lazy and searched, so --crop-to-flir-fov's off switch actually works, and a
+    future move of this file does not silently break it again.
+    """
+    for d in [start, *start.parents]:
+        if (d / "SensorFusionLoader").is_dir():
+            return d
+    raise RuntimeError(
+        f"SensorFusionLoader/ not found in any parent of {start} -- it holds "
+        "rig_calibration.py/.yaml and projection.py, which --crop-to-flir-fov needs.")
 
 
 def utc_now_iso() -> str:
@@ -250,8 +265,11 @@ def main():
     crop_box = None
     cal = None
     if args.crop_to_flir_fov:
-        cal_path = args.calibration or (
-            Path(__file__).resolve().parent.parent / "Calibration" / "rig_calibration.yaml")
+        root = _find_root(Path(__file__).resolve().parent)
+        sys.path.insert(0, str(root / "SensorFusionLoader"))
+        from rig_calibration import load_rig_calibration
+        from projection import flir_fov_bbox_in_zed
+        cal_path = args.calibration or (root / "SensorFusionLoader" / "rig_calibration.yaml")
         cal = load_rig_calibration(cal_path)
 
     triplets = manifest["triplets"][::args.every_n]
