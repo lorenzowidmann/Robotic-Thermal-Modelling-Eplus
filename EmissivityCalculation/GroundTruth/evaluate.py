@@ -58,6 +58,13 @@ import numpy as np
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 
+# Where generated output lands by default: everything here is reproducible
+# from ground_truth*.csv + the runs, in one command, so none of it is meant to
+# be kept or committed. out/ is entirely .gitignore'd -- ground_truth*.csv (the
+# hand-labelled work) and eval_frames.txt live one level up, next to the
+# scripts, and are NOT touched by this default.
+DEFAULT_OUT_DIR = _HERE / "out"
+
 import gt_common as gt                                            # noqa: E402
 
 
@@ -166,14 +173,25 @@ def main():
                    help="One or more run directories to compare.")
     p.add_argument("--names", nargs="+", metavar="NAME",
                    help="Column labels (default: the directory names).")
-    p.add_argument("--out", default="comparison.csv", metavar="CSV",
-                   help="Comparison table (default comparison.csv).")
+    p.add_argument("--out", default=None, metavar="CSV",
+                   help=f"Comparison table (default {DEFAULT_OUT_DIR.name}/comparison.csv). "
+                        "Everything under out/ is generated and .gitignore'd -- rerun to "
+                        "regenerate, there is nothing there worth keeping by hand.")
     p.add_argument("--confusion-dir", default=None, metavar="DIR",
                    help="Write one confusion matrix CSV per run here "
                         "(default: alongside --out).")
     p.add_argument("--table", default=None, metavar="CSV",
                    help="Alternative emissivity_table.csv (validates the labels).")
     args = p.parse_args()
+
+    # Resolved once, here, so every later use of --out agrees on the same
+    # path whether or not it was passed. Relative paths are relative to this
+    # script's directory, not the caller's cwd, so `cd GroundTruth && ...`
+    # from any starting directory lands in the same out/.
+    out_path = Path(args.out) if args.out else DEFAULT_OUT_DIR / "comparison.csv"
+    if not out_path.is_absolute():
+        out_path = _HERE / out_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     materials, _eps = gt.load_material_table(args.table)
     rows = gt.read_ground_truth(Path(args.ground_truth))
@@ -238,7 +256,7 @@ def main():
                        - set(gt_classes))
     classes = gt_classes + pred_only          # gt classes first, then FP-only
 
-    conf_dir = Path(args.confusion_dir) if args.confusion_dir else Path(args.out).parent
+    conf_dir = Path(args.confusion_dir) if args.confusion_dir else out_path.parent
     if not conf_dir.is_absolute():
         conf_dir = _HERE / conf_dir
     conf_dir.mkdir(parents=True, exist_ok=True)
@@ -329,9 +347,6 @@ def main():
                   f"and macro F1 here, not macro precision.")
 
     # --- comparison.csv -----------------------------------------------------
-    out_path = Path(args.out)
-    if not out_path.is_absolute():
-        out_path = _HERE / out_path
     with out_path.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["metric", "class", "support"] + names)

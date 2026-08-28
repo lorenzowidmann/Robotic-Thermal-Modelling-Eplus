@@ -117,8 +117,11 @@ an existing file annotated on a different run is refused.
 
 ## Scoring
 
-`evaluate.py` prints a table with the runs as columns, writes `comparison.csv`
-with the same content, and one `confusion_<name>.csv` per run.
+`evaluate.py` prints a table with the runs as columns, and writes the same
+content plus one `confusion_<name>.csv` per run to `out/` — `.gitignore`'d, since
+every one of those files is reproducible in one command from `ground_truth*.csv`
+and the runs. Rerunning overwrites `out/comparison.csv`; pass `--out
+out/comparison_<label>.csv` to keep two comparisons side by side instead.
 
 **The compatibility gate runs first and is fatal, with no `--force`.** Scoring a
 run against labels drawn on a different segmentation produces a wrong number
@@ -217,5 +220,7 @@ GroundTruth/
   annotate.py         Tkinter annotator; --init-frames pins eval_frames.txt
   evaluate.py         scoring, confusion matrices, the comparison table
   eval_frames.txt     the 20 pinned frames
+  ground_truth_*.csv  the hand-labelled work, one file per segmenter
   requirements.txt
+  out/                comparison.csv + confusion_*.csv -- generated, .gitignore'd
 ```
