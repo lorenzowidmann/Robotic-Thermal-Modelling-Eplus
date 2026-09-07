@@ -49,8 +49,8 @@ flirDir    = 'C:\Users\loren\Desktop\Dati_vfinal\SLAM\Flir\session9_only_rot180'
 % already be read together with this file, not with the old
 % corrected_temperature.npy (which on disk is still the very first run,
 % single-view, and is no longer consistent with emissivity_used).
-correctedName = 'corrected_temperature_consensus.npy';
-materialDirName = 'material_map_consensus';
+correctedName = 'corrected_temperature_m2f_consensus.npy';
+materialDirName = 'material_map_m2f_consensus';
 
 % The arguments, if passed, take precedence over the defaults above.
 if nargin >= 1 && ~isempty(sessionDirIn)
