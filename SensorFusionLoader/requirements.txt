@@ -7,3 +7,7 @@
 numpy
 opencv-python
 pyyaml
+
+# correct_session.py also imports EmissivityCalculation/emissivity, whose
+# table.py needs pandas -- not otherwise pulled in by this venv's own deps.
+pandas

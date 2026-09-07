@@ -21,7 +21,6 @@ everything outside the crop this way).
 """
 
 import numpy as np
-from skimage.segmentation import slic
 
 SAM_MODEL = "facebook/sam-vit-base"
 # SAM's own preprocessing constants (it does NOT use the CLIP/ImageNet pair).
@@ -38,6 +37,8 @@ def superpixel_segments(image: np.ndarray, n_segments: int = 100,
     Default 0.0 keeps the historical behaviour; 2-3 gives visibly cleaner
     boundaries at the same segment count.
     """
+    from skimage.segmentation import slic
+
     return slic(image, n_segments=n_segments, compactness=compactness, sigma=sigma,
                 start_label=0, channel_axis=-1)
 
