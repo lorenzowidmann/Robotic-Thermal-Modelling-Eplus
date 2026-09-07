@@ -37,7 +37,7 @@ import numpy as np
 from rosbags.highlevel import AnyReader
 from rosbags.typesys import Stores, get_typestore
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "Calibration"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "SensorFusionLoader"))
 from rig_calibration import load_rig_calibration
 from projection import project_lidar_to_camera
 
@@ -139,7 +139,7 @@ def main():
     out_dir = Path(args.out_dir) if args.out_dir else session_dir / "emissivity_map"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    cal_path = args.calibration or (Path(__file__).resolve().parent.parent / "Calibration" / "rig_calibration.yaml")
+    cal_path = args.calibration or (Path(__file__).resolve().parent.parent / "SensorFusionLoader" / "rig_calibration.yaml")
     cal = load_rig_calibration(cal_path)
 
     manifest = json.loads((session_dir / "sync_manifest.json").read_text(encoding="utf-8"))

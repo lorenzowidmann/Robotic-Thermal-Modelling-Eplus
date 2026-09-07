@@ -105,6 +105,27 @@ sampled, picking up the colour of the foreground edge — clearly visible at
 session 9 poses 71 and 106. `S.zBufferTol_m = 0.08` is deliberately the same
 order as the calibration RMSE.
 
+**The overlay is only as good as the ZED clock.** A misalignment that changes
+from pose to pose is a *timing* problem, not a calibration one: the LiDAR pose
+and the ZED frame it is drawn on are then simply not the same instant. The
+`fullrate/` timestamps written by `extract_fullrate_frames.py` are a uniform
+grid and drift by several hundred ms across a session — run
+`TimeSyncCheck/retime_fullrate_frames.py` and regenerate the manifest before
+reading anything into what you see here. Session 9 was off by 0.35 s on
+average (0.57 s worst), i.e. ~25 cm of walking, before that fix.
+
+**`lidarAccumHalfWindow_s` must stay at one scan while walking.**
+`/cloud_registered` is 5 Hz, so the old 0.4 s merged four scans spanning 0.8 s.
+The merged points are at the right world coordinates, but they were observed
+from up to 28 cm away (0.7 m/s at the end of session 9), so the merge
+reintroduces surfaces that are occluded from the pose being rendered. The 8 cm
+z-buffer is far too tight to reject them: they sample the thermal pixel of
+whichever foreground surface they sit behind, and the hot pattern smears
+sideways off the structure it belongs to. The artefact is zero while standing
+still and grows with speed, so it reads as drift accumulating over a session
+when it is really just the walking pace increasing. 0.1 s (one scan) is sharp;
+raise it only for stationary poses.
+
 **Body frame is assumed equal to the LiDAR frame.** No separate IMU–LiDAR
 extrinsic is known for this rig. The resulting error is expected to be small but
 has not been quantified.

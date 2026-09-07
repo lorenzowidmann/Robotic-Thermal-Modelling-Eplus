@@ -31,6 +31,39 @@ temperature conversion, or point-cloud fusion/coloring happens here.
 > **Note:** the LiDAR<->ZED clock relationship is assumed to be a shared host
 > clock (offset 0) until verified on the rig -- see `--lidar-zed-offset`.
 
+## Pre-step -- `retime_fullrate_frames.py`
+
+Run this **before** `sync_manifest.py` on any session whose ZED frames came
+from `DataAcquisition/extract_fullrate_frames.py`.
+
+That extractor re-times the mp4 on a uniform grid pinned to
+`session.started_utc`, and both ends of the model are biased: the first grab
+lands only after the UVC pipeline warms up, and `fps = (n-1)/duration_s` is
+derived from a wall clock that also covers camera open/close -- so the error
+grows over the session. The real grab loop jitters on top of that.
+
+The recorder already measured the truth: every subsampled `frames/` PNG carries
+its real `t_offset_s`, and every one of them is also a frame of the mp4. Matching
+each PNG back to its mp4 frame index (NCC on a downscaled descriptor) gives
+~one ground-truth anchor every `--frame-interval` seconds; the rest follows by
+interpolation. Ambiguous anchors (static scene, many identical frames) are
+dropped, not guessed.
+
+Without this, the ZED clock wanders by several hundred ms against the LiDAR
+clock -- the projected cloud lands on the wrong part of the RGB frame, by a
+different amount at the start and at the end of the session (session 9: mean
+error 0.35 s, worst 0.57 s -> 0.09 s / 0.10 s after retiming).
+
+```
+py retime_fullrate_frames.py --session-dir <ZED session dir>           # dry run
+py retime_fullrate_frames.py --session-dir <ZED session dir> --apply
+```
+
+`--apply` backs the uniform version up as `fullrate/metadata.uniform.json`.
+The ZED clock moves, so **regenerate `sync_manifest.json`** afterwards -- the
+Stage-1 FLIR<->ZED event offset was calibrated on the old timestamps and has to
+be recomputed (`--recompute-offset`).
+
 ## Setup
 
 ```

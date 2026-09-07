@@ -3,3 +3,6 @@ Pillow
 flyr
 matplotlib
 rosbags
+
+# retime_fullrate_frames.py (NCC frame matching against session_right.mp4)
+opencv-python

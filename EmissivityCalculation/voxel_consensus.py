@@ -51,7 +51,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "Calibration"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "SensorFusionLoader"))
 from projection import project_lidar_to_camera
 from rig_calibration import load_rig_calibration
 from project_to_flir import nearest_clouds_for_targets
@@ -428,7 +428,7 @@ def main():
     args = parse_args()
     session_dir = Path(args.session_dir)
     cal_path = args.calibration or (
-        Path(__file__).resolve().parent.parent / "Calibration" / "rig_calibration.yaml")
+        Path(__file__).resolve().parent.parent / "SensorFusionLoader" / "rig_calibration.yaml")
     cal = load_rig_calibration(cal_path)
 
     manifest = json.loads((session_dir / "sync_manifest.json").read_text(encoding="utf-8"))

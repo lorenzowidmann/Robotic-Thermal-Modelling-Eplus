@@ -41,6 +41,7 @@ Usage:
 """
 
 import argparse
+import math
 import json
 import sys
 from datetime import datetime, timezone
@@ -294,6 +295,53 @@ def nearest_index(sorted_epochs: np.ndarray, t: float) -> int:
     return min(cands, key=lambda j: abs(sorted_epochs[j] - t))
 
 
+def slerp(q0, q1, a: float) -> list[float]:
+    """Spherical linear interpolation between two [x,y,z,w] quaternions."""
+    q0 = np.asarray(q0, dtype=float)
+    q1 = np.asarray(q1, dtype=float)
+    if float(np.dot(q0, q1)) < 0.0:
+        q1 = -q1
+    c = float(np.clip(np.dot(q0, q1), -1.0, 1.0))
+    if c > 0.9995:
+        q = (1.0 - a) * q0 + a * q1
+    else:
+        th = math.acos(c)
+        q = (math.sin((1.0 - a) * th) * q0 + math.sin(a * th) * q1) / math.sin(th)
+    q = q / np.linalg.norm(q)
+    return [float(v) for v in q]
+
+
+def interp_pose(poses: list[dict], epochs: np.ndarray, t: float) -> tuple[dict, float]:
+    """Pose at time `t`, linear in position and SLERP in orientation.
+
+    Taking the NEAREST /Odometry sample instead is not good enough here. FLIR
+    runs at exactly 1 Hz and /Odometry at exactly 5 Hz, so the two are
+    commensurate: every FLIR frame lands at the same phase inside the odometry
+    period and the nearest-sample error is not random, it is the SAME constant
+    for every triplet (session 9: -0.0845 s, std 0.0019 s). A constant pose lag
+    is a constant misregistration of the whole cloud in the walking direction --
+    6 cm at 0.7 m/s -- in the same direction on every single frame, which is
+    exactly what reads as a calibration error in the overlay.
+
+    Returns the interpolated pose and the gap to the nearest real sample (for QA
+    -- a large gap means there is no odometry near this frame at all).
+    """
+    i = int(np.searchsorted(epochs, t))
+    lo = min(max(i - 1, 0), len(epochs) - 2) if len(epochs) >= 2 else 0
+    hi = min(lo + 1, len(epochs) - 1)
+    gap = float(min(abs(epochs[lo] - t), abs(epochs[hi] - t)))
+    if hi == lo:
+        return dict(poses[lo]), gap
+    span = float(epochs[hi] - epochs[lo])
+    a = 0.0 if span <= 0 else float(np.clip((t - epochs[lo]) / span, 0.0, 1.0))
+    p0 = poses[lo]["position"]
+    p1 = poses[hi]["position"]
+    return {
+        "position": [float((1.0 - a) * p0[k] + a * p1[k]) for k in range(3)],
+        "orientation": slerp(poses[lo]["orientation"], poses[hi]["orientation"], a),
+    }, gap
+
+
 def build_triplets(flir_frames, flir_ts, flir_src, zed_frames, poses,
                    flir_zed_offset, lidar_zed_offset, max_delta) -> tuple[list, dict]:
     """One triplet per FLIR frame (reference). Everything is compared on the ZED
@@ -307,19 +355,24 @@ def build_triplets(flir_frames, flir_ts, flir_src, zed_frames, poses,
         flir_zed = flir_ts[i] + flir_zed_offset
 
         zi = nearest_index(zed_epochs, flir_zed)
-        li = nearest_index(lidar_zed_epochs, flir_zed)
         zed = zed_frames[zi]
-        pose = poses[li]
-        lidar_zed = lidar_zed_epochs[li]
+        # The ZED frame has to be an existing image, so it stays nearest-match.
+        # The LiDAR pose does not: it is interpolated onto flir_zed exactly.
+        pose, pose_gap = interp_pose(poses, lidar_zed_epochs, flir_zed)
+        lidar_zed = flir_zed
 
         d_flir_zed = flir_zed - zed["epoch"]
         d_flir_lidar = flir_zed - lidar_zed
         d_zed_lidar = zed["epoch"] - lidar_zed
 
+        # flir_lidar is 0 by construction now that the pose is interpolated onto
+        # flir_zed, so the LiDAR health check is the gap to the nearest real
+        # /Odometry sample instead: that is what tells you the interpolation had
+        # something to work with.
         exceeds = [
             name for name, d in (
                 ("flir_zed", d_flir_zed),
-                ("flir_lidar", d_flir_lidar),
+                ("lidar_pose_gap", pose_gap),
                 ("zed_lidar", d_zed_lidar),
             ) if abs(d) > max_delta
         ]
@@ -339,10 +392,12 @@ def build_triplets(flir_frames, flir_ts, flir_src, zed_frames, poses,
                 "timestamp_zed": round(zed["epoch"], 6),
             },
             "lidar": {
-                "timestamp_lidar": round(pose["epoch"], 6),
+                "timestamp_lidar": round(float(flir_zed - lidar_zed_offset), 6),
                 "timestamp_zedclock": round(float(lidar_zed), 6),
                 "position": pose["position"],
                 "orientation": pose["orientation"],
+                "pose_source": "interpolated",
+                "nearest_pose_gap_s": round(float(pose_gap), 6),
             },
             "deltas_s": {
                 "flir_zed": round(float(d_flir_zed), 6),

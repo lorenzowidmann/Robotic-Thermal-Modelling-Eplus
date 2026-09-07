@@ -52,6 +52,10 @@ capture loop can jitter.
 python extract_fullrate_frames.py --session-dir <ZED session dir>
 ```
 
+The timestamps it writes are a **uniform grid** (`i / fps`), which is only an
+approximation — always follow it with
+`TimeSyncCheck/retime_fullrate_frames.py` (documented there).
+
 ## Full recording session (LiDAR + ZED + FLIR)
 
 Sequence to record one environment/facade scan session with all three sensors

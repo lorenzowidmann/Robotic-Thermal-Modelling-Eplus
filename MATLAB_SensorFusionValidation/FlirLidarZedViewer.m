@@ -1,36 +1,36 @@
 function FlirLidarZedViewer(startIdx)
-%FLIRLIDARZEDVIEWER Overlay interattivo FLIR->ZED, sessione 9, scorribile pose per pose.
+%FLIRLIDARZEDVIEWER Interactive FLIR->ZED overlay, session 9, steppable pose by pose.
 %
-% Per i dettagli e le fonti dei parametri (intrinseche, estrinseche, convenzione
-% FLIR rot180) vedi README.md in questa cartella. Navigazione: ogni pressione di tasto
-% carica il TRIPLET successivo/precedente dal sync manifest -> nuova scansione
-% LiDAR dal bag, nuova immagine FLIR, nuovo frame ZED, nuova proiezione.
+% For the details and the sources of the parameters (intrinsics, extrinsics,
+% FLIR rot180 convention) see README.md in this folder. Navigation: each keypress
+% loads the next/previous TRIPLET from the sync manifest -> new LiDAR scan from
+% the bag, new FLIR image, new ZED frame, new projection.
 %
-% Uso:
-%   FlirLidarZedViewer        % parte dal pose 9
-%   FlirLidarZedViewer(30)    % parte dal pose 30
+% Usage:
+%   FlirLidarZedViewer        % starts at pose 9
+%   FlirLidarZedViewer(30)    % starts at pose 30
 %
-% Tasti (finestra della figura deve avere il focus):
-%   freccia destra / n   -> pose successivo
-%   freccia sinistra / p -> pose precedente
-%   s                     -> salva il frame corrente in output/
-%   q / chiusura finestra -> esce
+% Keys (the figure window must have focus):
+%   right arrow / n      -> next pose
+%   left arrow / p       -> previous pose
+%   s                    -> save the current frame to output/
+%   q / close window     -> quit
 %
-% NOTA: richiede una sessione MATLAB interattiva (desktop). Non funziona con
-% `matlab -batch`, perche' in batch la finestra si chiude appena lo script
-% termina e non resta nessun event loop ad ascoltare i tasti.
+% NOTE: requires an interactive MATLAB session (desktop). It does not work under
+% `matlab -batch`, because in batch the window closes as soon as the script
+% returns and no event loop is left to listen for keys.
 
 close all
 clc
-% NB: niente "clear" qui - in una function cancellerebbe anche l'argomento
-% di ingresso startIdx prima ancora di leggerlo (ogni chiamata a una
-% function parte comunque con workspace pulito, non serve).
+% NB: no "clear" here - inside a function it would also wipe the input
+% argument startIdx before it is even read (a function call starts with a
+% clean workspace anyway, so it is not needed).
 
 if nargin < 1
     startIdx = 9;
 end
 
-%% Parametri fissi (fonti documentate in README.md)
+%% Fixed parameters (sources documented in README.md)
 
 sessionRoot   = 'C:\Users\loren\Desktop\Dati_vfinal\SLAM';
 S.zedSessionDir = fullfile(sessionRoot, 'ZED', '20260730_161223', 'fullrate');
@@ -38,31 +38,39 @@ S.flirRot180Dir = fullfile(sessionRoot, 'Flir', 'session9_only_rot180');
 bagPath       = fullfile(sessionRoot, 'Lidar', 'rosbag2_2026_07_30-18_12_20');
 syncManifestPath = fullfile(S.zedSessionDir, 'sync_manifest.json');
 
-S.lidarSearchWindow_s = 1.0;
+% The Livox HAP scans non-repetitively: ONE single scan (~0.2s, the spacing
+% between /cloud_registered messages) only covers partial bands of the scene,
+% hence the wide stripes visible on the overlay. To densify it, several
+% consecutive scans around the chosen pose are merged (all transformed
+% world->body with the SAME /Odometry pose of the triplet, so the rig is
+% assumed near-stationary over the window: wider = more points but more
+% "motion blur" for surfaces moving in the scene).
+%
+% Keep this at ONE scan. /cloud_registered is 5 Hz, so 0.4 s merges 4 scans
+% spanning 0.8 s = 56 cm of travel at the 0.7 m/s of the end of session 9.
+% The extra points are in the right place in the world, but they were observed
+% from up to 28 cm away, so they include surfaces that are OCCLUDED from the
+% pose being rendered. The 8 cm z-buffer cannot reject them, they take the
+% thermal value of whatever foreground surface they land behind, and the hot
+% pattern bleeds sideways off the structure it belongs to - tens of cm at the
+% end of the session, nothing at all while standing still. That is what looked
+% like accumulating drift after pose ~65.
+S.lidarAccumHalfWindow_s = 0.1;   % seconds BEFORE and AFTER the pose timestamp
 
-% Il Livox HAP ha scansione non ripetitiva: UNA sola scansione (~0.2s, lo
-% spacing tra messaggi /cloud_registered) copre solo bande parziali della
-% scena, da cui le righe larghe visibili sull'overlay. Per infittire, si
-% fondono piu' scansioni consecutive attorno al pose scelto (tutte
-% trasformate world->body con la STESSA posa /Odometry del triplet, quindi
-% assunzione di robot quasi fermo durante la finestra: piu' larga = piu'
-% punti ma piu' "motion blur" per superfici in movimento nella scena).
-S.lidarAccumHalfWindow_s = 0.4;   % secondi PRIMA e DOPO il timestamp del pose
-
-% Filtro di occlusione (z-buffer) per camera: FLIR e ZED non sono co-locate
-% (baseline reale ~13cm tra loro sul rig), quindi su uno spigolo vicino le due
-% camere vedono "dietro l'angolo" in modo diverso. Senza questo filtro, un
-% punto della parete nascosta dietro uno spigolo (invisibile a FLIR ma
-% geometricamente dentro il suo frustum) viene comunque campionato,
-% prendendo per errore il colore dello spigolo in primo piano. Per ogni
-% pixel (int) di ciascuna camera si tiene solo il punto piu' vicino (± tol).
-S.zBufferTol_m = 0.08;   % margine oltre il piu' vicino, stesso ordine dell'RMSE di calibrazione
+% Per-camera occlusion filter (z-buffer): FLIR and ZED are not co-located
+% (~13cm real baseline between them on the rig), so near an edge the two
+% cameras see "around the corner" differently. Without this filter, a point on
+% a wall hidden behind an edge (invisible to the FLIR but geometrically inside
+% its frustum) still gets sampled, wrongly picking up the colour of the
+% foreground edge. For each (integer) pixel of each camera only the nearest
+% point is kept (+- tol).
+S.zBufferTol_m = 0.08;   % margin beyond the nearest, same order as the calibration RMSE
 S.outDir = fullfile(fileparts(mfilename('fullpath')), 'output');
 if ~exist(S.outDir, 'dir')
     mkdir(S.outDir);
 end
 
-% Estrinseche LiDAR -> camera (risultati adottati)
+% LiDAR -> camera extrinsics (adopted results)
 S.R_lidar2flir = [ 0.048992   -0.998798   -0.00174722;
                     0.0621242   0.00479317 -0.998057;
                     0.996865    0.0487882   0.0622843 ];
@@ -73,7 +81,7 @@ S.R_lidar2zed = [ 0.00758424 -0.999954   -0.00584239;
                    0.99922     0.00780478 -0.0386981 ];
 S.t_lidar2zed = [-0.0992363; 0.0888694; -0.000231952];
 
-% Intrinseche, modello senza skew
+% Intrinsics, no-skew model
 S.Kf = [570.4796        0  149.1501;
                0  545.4275  117.0047;
                0         0         1];
@@ -88,31 +96,31 @@ S.kZed = [-1.558253e-01, 9.026829e-03];
 S.pZed = [ 6.208599e-04, 5.667587e-04];
 S.zedW = 1920; S.zedH = 1080;
 
-%% Sync manifest + bag (aperti una volta sola, riusati ad ogni cambio pose)
+%% Sync manifest + bag (opened once, reused on every pose change)
 
-fprintf('Carico sync manifest: %s\n', syncManifestPath);
+fprintf('Loading sync manifest: %s\n', syncManifestPath);
 manifest = jsondecode(fileread(syncManifestPath));
 S.triplets = manifest.triplets;
 S.nTriplets = numel(S.triplets);
 
 if startIdx < 0 || startIdx >= S.nTriplets
-    error('startIdx=%d fuori range [0, %d]', startIdx, S.nTriplets-1);
+    error('startIdx=%d out of range [0, %d]', startIdx, S.nTriplets-1);
 end
 
-fprintf('Apro bag: %s\n', bagPath);
+fprintf('Opening bag: %s\n', bagPath);
 S.bag = ros2bagreader(bagPath);
 
-fprintf(['\nTasti: freccia destra/n = pose successivo, freccia sinistra/p = precedente, ' ...
-    's = salva PNG, q/chiudi finestra = esci.\n\n']);
+fprintf(['\nKeys: right arrow/n = next pose, left arrow/p = previous, ' ...
+    's = save PNG, q/close window = quit.\n\n']);
 
-%% Figura + primo render
+%% Figure + first render
 
 S.idx = startIdx;
 S.imgHandle = [];
 S.scatterHandle = [];
 S.axHandle = [];
 
-fig = figure('Name', 'FLIR su ZED - sessione 9 (viewer)');
+fig = figure('Name', 'FLIR on ZED - session 9 (viewer)');
 set(fig, 'KeyPressFcn', @keyHandler);
 guidata(fig, S);
 
@@ -120,7 +128,7 @@ renderFrame(fig);
 
 end
 
-%% --- Callback tastiera ---
+%% --- Keyboard callback ---
 
 function keyHandler(src, event)
     S = guidata(src);
@@ -143,22 +151,22 @@ function keyHandler(src, event)
         guidata(src, S);
         renderFrame(src);
     else
-        fprintf('Gia'' al limite (pose %d).\n', S.idx);
+        fprintf('Already at the limit (pose %d).\n', S.idx);
     end
 end
 
-%% --- Render di un pose ---
+%% --- Render one pose ---
 
 function renderFrame(figHandle)
     S = guidata(figHandle);
     tr = S.triplets(S.idx + 1);
 
-    % --- scansioni LiDAR nella finestra di accumulo attorno al triplet ---
+    % --- LiDAR scans in the accumulation window around the triplet ---
     targetT = tr.lidar.timestamp_lidar;
     sel = select(S.bag, 'Time', [targetT - S.lidarAccumHalfWindow_s, targetT + S.lidarAccumHalfWindow_s], ...
         'Topic', '/cloud_registered');
     if sel.NumMessages == 0
-        warning('Nessun /cloud_registered entro +-%.2fs per pose %d, skip.', S.lidarAccumHalfWindow_s, S.idx);
+        warning('No /cloud_registered within +-%.2fs for pose %d, skipping.', S.lidarAccumHalfWindow_s, S.idx);
         return
     end
     msgs = readMessages(sel);
@@ -168,14 +176,14 @@ function renderFrame(figHandle)
     end
     ptsWorld = vertcat(ptsWorld{:});
 
-    % --- world -> body con la posa /Odometry del triplet ---
+    % --- world -> body using the /Odometry pose of the triplet ---
     t_wb = tr.lidar.position(:);
     q_xyzw = tr.lidar.orientation(:)';
     q_wxyz = [q_xyzw(4), q_xyzw(1), q_xyzw(2), q_xyzw(3)];
     R_wb = quat2rotm(q_wxyz);
     ptsBody = (R_wb' * (ptsWorld' - t_wb))';
 
-    % --- proiezione in FLIR e ZED ---
+    % --- projection into FLIR and ZED ---
     ptsFlir = (S.R_lidar2flir * ptsBody' + S.t_lidar2flir)';
     ptsZed  = (S.R_lidar2zed  * ptsBody' + S.t_lidar2zed)';
 
@@ -183,8 +191,8 @@ function renderFrame(figHandle)
     [uZed,  vZed,  validZed ] = projectPinhole(ptsZed,  S.Kz, S.kZed,  S.pZed,  S.zedW,  S.zedH);
     validBoth = validFlir & validZed;
 
-    % z-buffer per camera: scarta i punti occlusi (non i piu' vicini nel loro
-    % pixel), calcolato solo sul sottoinsieme gia' valido in entrambe
+    % per-camera z-buffer: drop the occluded points (not the nearest one in
+    % their pixel), computed only on the subset already valid in both
     okFlir = false(size(validBoth)); okZed = false(size(validBoth));
     okFlir(validBoth) = zBufferMask(uFlir(validBoth), vFlir(validBoth), ptsFlir(validBoth,3), ...
         S.flirW, S.flirH, S.zBufferTol_m);
@@ -192,7 +200,7 @@ function renderFrame(figHandle)
         S.zedW,  S.zedH,  S.zBufferTol_m);
     validBoth = validBoth & okFlir & okZed;
 
-    % --- immagine FLIR colorizzata ---
+    % --- colourised FLIR image ---
     [~, flirBase, ~] = fileparts(tr.flir.file);
     flirBase = erase(flirBase, '_R');
     flirNpyPath = fullfile(S.flirRot180Dir, [flirBase '.npy']);
@@ -208,10 +216,10 @@ function renderFrame(figHandle)
     rCh = flirRgb(:,:,1); gCh = flirRgb(:,:,2); bCh = flirRgb(:,:,3);
     sampledColors = [rCh(linIdx), gCh(linIdx), bCh(linIdx)];
 
-    % --- immagine ZED ---
+    % --- ZED image ---
     zedImg = imread(fullfile(S.zedSessionDir, 'frames', tr.zed.file));
 
-    % --- disegna (riusa gli handle se gia' esistono, molto piu' veloce) ---
+    % --- draw (reuse the handles if they already exist, much faster) ---
     if isempty(S.imgHandle) || ~isvalid(S.imgHandle)
         clf(figHandle);
         S.axHandle = axes('Parent', figHandle);
@@ -222,30 +230,30 @@ function renderFrame(figHandle)
         set(S.imgHandle, 'CData', zedImg);
         set(S.scatterHandle, 'XData', uZ, 'YData', vZ, 'CData', sampledColors);
     end
-    title(S.axHandle, sprintf('Sessione 9, pose %d/%d (%s) — FLIR %s su ZED %s', ...
+    title(S.axHandle, sprintf('Session 9, pose %d/%d (%s) — FLIR %s on ZED %s', ...
         S.idx, S.nTriplets - 1, tr.match_status, tr.flir.file, tr.zed.file), 'Interpreter', 'none');
     drawnow;
 
-    fprintf('Pose %d/%d | match=%-13s | FLIR %s | ZED %s | scan fuse=%d | punti validi=%d\n', ...
+    fprintf('Pose %d/%d | match=%-13s | FLIR %s | ZED %s | scans fused=%d | valid points=%d\n', ...
         S.idx, S.nTriplets - 1, tr.match_status, tr.flir.file, tr.zed.file, numel(msgs), sum(validBoth));
 
     guidata(figHandle, S);
 end
 
-%% --- Salvataggio manuale (tasto 's') ---
+%% --- Manual save ('s' key) ---
 
 function saveCurrentFrame(S)
     outPng = fullfile(S.outDir, sprintf('flir_on_zed_session9_pose%02d.png', S.idx));
     exportgraphics(S.axHandle, outPng, 'Resolution', 200);
-    fprintf('Salvato: %s\n', outPng);
+    fprintf('Saved: %s\n', outPng);
 end
 
-%% --- Funzioni di proiezione / lettura .npy ---
+%% --- Projection / .npy reading functions ---
 
 function mask = zBufferMask(u, v, z, W, H, tol)
-% Per ogni pixel intero (round(u),round(v)), tiene solo i punti entro "tol"
-% dalla profondita' minima osservata in quel pixel; scarta gli altri
-% (occlusi da qualcosa di piu' vicino lungo lo stesso raggio della camera).
+% For each integer pixel (round(u),round(v)), keeps only the points within "tol"
+% of the minimum depth observed in that pixel; discards the others (occluded by
+% something nearer along the same camera ray).
     if isempty(u)
         mask = false(0,1);
         return
@@ -275,7 +283,7 @@ end
 function arr = readNpyFloat32(npyPath)
     fid = fopen(npyPath, 'r');
     if fid < 0
-        error('Impossibile aprire %s', npyPath);
+        error('Cannot open %s', npyPath);
     end
     cleanupObj = onCleanup(@() fclose(fid));
     fread(fid, 6, 'uint8=>char');
@@ -289,7 +297,7 @@ function arr = readNpyFloat32(npyPath)
     nRows = dims(1); nCols = dims(2);
 
     if ~contains(headerStr, '<f4')
-        error('Formato .npy non gestito (atteso float32 little-endian ''<f4''): %s', headerStr);
+        error('Unhandled .npy format (expected float32 little-endian ''<f4''): %s', headerStr);
     end
     data = fread(fid, nRows * nCols, 'single=>single');
     arr = reshape(data, [nCols, nRows])';
