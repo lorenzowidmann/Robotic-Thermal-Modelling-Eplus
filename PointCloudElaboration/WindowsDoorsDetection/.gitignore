@@ -1,0 +1,8 @@
+# Per-run outputs/inputs (fit_openings.py --points/--scene-points CSVs, its
+# --out openings.json). Session-specific, regenerated per bag -- never commit.
+pts_prov*.csv
+scene_pts*.csv
+openings_*.json
+
+__pycache__/
+*.py[cod]

@@ -33,6 +33,13 @@ subdivided into 8 occupied children per level.
 
 No thermal/temperature averaging per voxel yet -- geometry/alignment only.
 
+Optional 4th script, joining in a *different* pipeline's output rather than
+part of the pipeline above: **`view_voxels_thermal.py`** -- same
+`voxels.npz` viewer as `view_voxels.py`, but colored by temperature (real
+degrees C) instead of point count, joined against
+`EmissivityCalculation/voxel_consensus.py --stage thermal`'s
+`thermal_voxels.csv`. See "`view_voxels_thermal.py`" below.
+
 ## Usage
 
 ```powershell
@@ -79,6 +86,77 @@ See each script's module docstring (`--help`) for the full flag list.
 
 Not bound to `+`/`-`/arrow keys: pyvista's own defaults already use those for
 camera zoom and point size, so reusing them would fire both at once.
+
+## `view_voxels_thermal.py`
+
+Same `voxels.npz` cube-glyph viewer as `view_voxels.py` (same `]`/`[`/`0`/`d`
+live keys, same closed-box overlay, same `--screenshot`/`--orbit-gif`
+headless options), but color is mean temperature (deg C, real colorbar) from
+a **different pipeline's** output, joined in for display only -- nothing
+here is written back into `OcTreeVoxel_out/`.
+
+```powershell
+C:\venvs\planefit\Scripts\python.exe view_voxels_thermal.py --thermal-csv <path/to/thermal_voxels.csv>
+```
+
+Inputs:
+- `OcTreeVoxel_out/voxels.npz` + `transform.json` (this folder's own build
+  products, defaulted same as `view_voxels.py`).
+- `--thermal-csv` (**required, no default**) -- `thermal_voxels.csv` from
+  `EmissivityCalculation/voxel_consensus.py --stage thermal`
+  (`x,y,z,t_mean_c,t_std_c,n_obs,material,solar_absorptance`; only
+  `x,y,z,t_mean_c` are used here). Unlike this folder's own outputs, that
+  file lives elsewhere on disk (e.g.
+  `...\SLAM\ZED\<session>\fullrate\voxel_map*\thermal_voxels.csv`), so
+  there's deliberately no hardcoded default path.
+
+**Frame-join caveat** -- the two grids don't share a frame *or* a lattice:
+- `voxels.npz` is in the aligned (building-frame) coordinates
+  `aligned_octree.py` produced (0.15 m voxels in the reference bag).
+- `thermal_voxels.csv`'s `x,y,z` are in the **raw, pre-alignment** SLAM
+  (`camera_init`) frame -- same session, same underlying LiDAR, but
+  `aligned_octree.py` never touches this file, so it is never
+  rotated/translated anywhere upstream. There is no pre-aligned copy of the
+  thermal data sitting on disk anywhere; alignment happens fresh, in memory,
+  every time this script runs.
+
+  `view_voxels_thermal.py` transforms the CSV's raw-frame `x,y,z` into the
+  aligned frame itself, on load, using `transform.json`'s *forward*
+  convention -- `aligned = raw @ rotation.T + translation` (same direction
+  `aligned_octree.py` applied to the whole LiDAR cloud, same direction
+  `view_voxels.load_aligned_points()` uses for its `--points` overlay) --
+  **not** `rotation_inv`/`translation_inv`, which map the other way
+  (aligned back to raw).
+- The two grids are also different sizes (0.15 m vs. 0.20 m in the
+  reference data) and don't share a lattice origin, so a voxel center in one
+  essentially never lands on a voxel center in the other even once both are
+  in the same frame. Matching is therefore a radius search
+  (`scipy.spatial.cKDTree.query_ball_point`, `--match-radius`, default
+  0.20 m -- one thermal-voxel edge length), not an index lookup: each
+  `voxels.npz` cell gets the mean `t_mean_c` of every thermal-CSV voxel
+  within that radius (0, one, or several).
+
+Before any rendering, the script prints: both point sets' bounding boxes in
+the aligned frame, whether they actually overlap, the match count/rate at
+`--match-radius`, and a sensitivity sweep at 0.5x/1x/1.5x/2x/3x that radius.
+On the reference bag + `20260730_161223/fullrate/voxel_map_m2f/thermal_voxels.csv`
+this comes out ~99.5% matched at the 0.20 m default. A non-overlapping bbox
+or a very low match rate (<10%, see `LOW_MATCH_RATE_WARN`) prints a loud
+warning instead of silently rendering a mostly-grey/empty scene -- that
+signals a wrong transform direction or a mismatched bag/thermal-csv pairing,
+not a radius that merely needs tuning. `--diagnostics-only` prints all of
+this and exits without building any visualization.
+
+Unmatched voxels (no thermal-CSV voxel within `--match-radius`) render in a
+distinct neutral color (`--unmatched-color`, default `lightgray`) rather
+than being hidden, so it's visually clear which cells are measured vs.
+simply absent from the thermal data. Color defaults to `plasma` (sequential,
+perceptually uniform -- not MATLAB `ViewThermalCSV.m`'s `jet`), fixed
+`--clim` optional as in that script's `tempCLimits`.
+
+Self-contained like the rest of this folder: only `x,y,z,t_mean_c` parsing
+logic is copied in (plain `csv.DictReader`, no pandas); nothing is imported
+from `EmissivityCalculation/voxel_consensus.py`.
 
 ## Output
 

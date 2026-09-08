@@ -20,14 +20,25 @@ Run in order:
    python parse_arpav.py --in Legnaro.htm --out legnaro_ghi.csv
    ```
 
-2. **`voxel_u_value.py`** — the base U per voxel, no solar term:
+2. **`add_surface_hsi.py`** (optional, run BEFORE `voxel_u_value.py`) —
+   reconstructs `surface_type` (floor/wall/ceiling) and `hsi_used` (ISO 6946
+   5.9/7.7/10.0) columns geometrically, by nearest-plane distance, so a rerun
+   stays comparable to session 6's original `thermal_voxels_u.csv`, which had
+   these columns from a since-lost script version. Once run, `voxel_u_value.py`
+   can read `hsi_used` per-voxel instead of taking one `--hsi` for every voxel.
+   ```powershell
+   py add_surface_hsi.py --in thermal_voxels.csv --planes planes_session6.json `
+       --floor-plane-id 0 --ceiling-plane-id 4
+   ```
+
+3. **`voxel_u_value.py`** — the base U per voxel, no solar term:
    `U = hsi * (Tint - Tsurf) / (Tint - Text)`. Also flags voxels whose raw
    Tsurf falls outside `[min(Tint,Text), max(Tint,Text)]`, which is physically
    implausible for a pure-conduction surface — `solar_suspected`,
    `solar_possible` or `implausible` depending on the material.
    Writes `thermal_voxels_u.csv`.
 
-3. **`voxel_solar_ns.py`** — the solar correction that is actually used, for
+4. **`voxel_solar_ns.py`** — the solar correction that is actually used, for
    the exterior walls. Places the gain where the sun physically is, on the
    OUTSIDE face, via the sol-air temperature:
    ```
@@ -46,7 +57,7 @@ Run in order:
    `u_value_corrected_w_m2k` on purpose — that is a "no valid U exists", not a
    missing value, and downstream must not fill it in.
 
-4. **`sun_incidence.py`** — plane-of-array irradiance for one plane at one
+5. **`sun_incidence.py`** — plane-of-array irradiance for one plane at one
    instant, via pvlib (Erbs decomposition + Perez transposition + IAM). Called
    by `voxel_solar_ns.py`; also runnable alone to inspect a wall.
    ```powershell
