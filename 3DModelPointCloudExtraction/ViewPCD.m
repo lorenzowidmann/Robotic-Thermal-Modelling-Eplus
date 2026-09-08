@@ -15,7 +15,7 @@ close all
 clc
 
 %% 1. Parametri
-pcdPath =  "C:\Users\loren\Desktop\Measurment_v2\ClaudeCode\Thesis-final-wt2\3DModelPointCloudExtraction\SavedBag\merged_cloud.pcd";
+pcdPath = "C:\Users\loren\Desktop\Measurment_v2\ClaudeCode\FAST-LIO-SAM-SC-QN\fast_lio_sam_sc_qn\result.pcd";
 
 % Downsampling a voxel: media i punti dentro celle cubiche di lato
 % voxelSize. Riduce la densita' in modo uniforme nello spazio.
