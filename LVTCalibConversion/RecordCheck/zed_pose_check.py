@@ -1,8 +1,8 @@
 """
 Per ogni posa rilevata in una sessione ZED (stessa segmentazione di
-zed_pose_detect.py), controlla se la board di calibrazione a quattro fori e'
+detect_board_poses.py), controlla se la board di calibrazione a quattro fori e'
 davvero presente e interamente dentro l'inquadratura -- non solo se la scena
-e' "ferma" (che zed_pose_detect.py da solo non distingue da un cavalletto
+e' "ferma" (che detect_board_poses.py da solo non distingue da un cavalletto
 vuoto, vedi il caso reale trovato a mano il 2026-09-11: pose 2/5/13/16 erano
 solo il cavalletto senza board).
 
@@ -30,7 +30,7 @@ DUE differenze rispetto alla FLIR:
    FISICO della board reale (fori a +/-0.15,+/-0.15 m, diametro 0.13 m -> atteso
    ~3.26, indipendente da distanza/scala), --hole-spacing-ratio-min/-max.
 
-La segmentazione delle pose e' quella di zed_pose_detect.py (stessa funzione,
+La segmentazione delle pose e' quella di detect_board_poses.py (stessa funzione,
 importata da qui): stessi flag, stessi default, cosi' i numeri di posa
 combaciano tra i due script sulla stessa sessione.
 
@@ -55,8 +55,9 @@ try:
 except ImportError:
     sys.exit("Serve opencv-python:  py -m pip install opencv-python")
 
-# riusa la segmentazione di zed_pose_detect.py (stessa cartella)
-from zed_pose_detect import load_session, diff_profile, segment
+# riusa la segmentazione (era zed_pose_detect.py, consolidato in
+# detect_board_poses.py)
+from detect_board_poses import load_session, diff_profile, segment
 
 
 def detect_holes(gray, hole_kernel, min_area, max_area, min_circ, rect_tol,
@@ -278,7 +279,7 @@ def main():
                     help="Cartella sessione di zed_record.py (con metadata.json e frames/)")
     ap.add_argument("--eye", choices=("right", "left"), default="right",
                     help="Occhio da analizzare (default right)")
-    # --- segmentazione (stessi default di zed_pose_detect.py) ---
+    # --- segmentazione (stessi default di detect_board_poses.py) ---
     ap.add_argument("--threshold", type=float, default=None)
     ap.add_argument("--mad-k", type=float, default=6.0)
     ap.add_argument("--min-move-frames", type=int, default=3)

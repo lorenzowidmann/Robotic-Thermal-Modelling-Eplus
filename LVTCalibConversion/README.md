@@ -11,6 +11,7 @@ FLIR RJPG frames) into a form **LVT2Calib** (ROS1/Noetic, runs in the
 | `convert_livox_bag.py` (+ `requirements.txt`) | Standalone Python script. Converts a ROS2 bag with `livox_ros_driver2/msg/CustomMsg` into a ROS1 `.bag`, remapping the message namespace to `livox_ros_driver` (v1) so `koide3/livox_to_pointcloud2`'s ROS1 branch accepts it. | Windows host, plain `pip` venv |
 | `zed_frame_publisher/` | ROS1 catkin package. Publishes ZED 2i frames recorded by `zed_record.py` (PNG session + `metadata.json`) as `sensor_msgs/Image`, for LVT2Calib's RGB `cam_pattern` node. | Inside `lvt2calib_gui` container |
 | `flir_frame_publisher/` | ROS1 catkin package. Publishes FLIR radiometric JPEG (RJPG) frames as `sensor_msgs/Image`, for LVT2Calib's thermal `cam_pattern` node. Sibling of `zed_frame_publisher`. | Inside `lvt2calib_gui` container |
+| `ZedFill/` | Standalone Python. Riempie di bianco i 4 fori della board nei frame ZED di una posa, ricostruendoli come proiezione esatta dei cerchi del modello via omografia del piano board: serve quando dietro un foro si vede la maniglia dell'armadio e il blob detector di LVT2Calib scarta la posa. | Windows host, plain `pip` venv |
 | `livox_hap_pattern.launch` | Launch file adding **Livox HAP** support to LVT2Calib, which upstream does not ship. Copy into `lvt2calib/launch/lidar/livox/`. | Inside `lvt2calib_gui` container |
 
 Each has its own README with full details (flags, defaults, why they were

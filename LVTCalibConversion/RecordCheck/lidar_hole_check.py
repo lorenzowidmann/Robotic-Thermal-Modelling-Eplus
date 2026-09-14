@@ -9,7 +9,7 @@ Passi:
    Reader.messages(start, stop), che
    sul .db3 diventa una query SQL filtrata per timestamp, quindi il resto del
    file non viene letto. Il payload CDR e' decodificato a struct (solo x/y/z,
-   stesso parser di lidar_pose_detect.py), senza typestore.
+   stesso parser di detect_board_poses.py), senza typestore.
 2. Accumula tutti gli scan in un'unica nuvola (assunzione: target statico
    nella finestra). I punti a ~0 m (nessun ritorno) vengono scartati.
 3. Ritaglio opzionale --roi xmin xmax ymin ymax zmin zmax (frame del sensore),
@@ -48,8 +48,12 @@ try:
 except ImportError:
     sys.exit("Serve il pacchetto open3d (venv C:\\venvs\\planefit).")
 
-from lidar_pose_detect import (_CUSTOM_MSG_TYPE, _POINT_CLOUD2_TYPE, Reader,
-                               _custom_msg_xyz, _pointcloud2_xyz, resolve_bag)
+# era lidar_pose_detect.py, consolidato in detect_board_poses.py
+from detect_board_poses import (_CUSTOM_MSG_TYPE, _POINT_CLOUD2_TYPE,
+                                _custom_msg_xyz, _pointcloud2_xyz, resolve_bag,
+                                _require_reader)
+
+Reader = _require_reader()
 
 _RANSAC_MAX_POINTS = 2_000_000   # il RANSAC gira su un sotto-campione
 _MAX_GRID_CELLS = 20_000_000
@@ -218,7 +222,7 @@ def main():
                     help="Topic LiDAR (default /livox/lidar)")
     ap.add_argument("--start", type=float, default=0.0,
                     help="Inizio della finestra in secondi dall'inizio del bag (default 0): "
-                         "per una posa successiva usare offset_inizio_s di lidar_pose_detect.py")
+                         "per una posa successiva usare offset_inizio_s di detect_board_poses.py --bag")
     ap.add_argument("--seconds", type=float, default=60.0,
                     help="Durata della finestra letta, da --start (default 60)")
     ap.add_argument("--point-stride", type=int, default=1,

@@ -4,3 +4,7 @@ rosbags
 # RecordCheck/ (zed_pose_detect.py, lidar_pose_detect.py, lidar_quality_check.py)
 numpy
 opencv-python
+
+# ZedFill/ (fill_board_holes.py) -- numpy/opencv gia' sopra.
+# scipy e' opzionale: senza, il raffinamento usa il fallback solo-numpy.
+scipy
