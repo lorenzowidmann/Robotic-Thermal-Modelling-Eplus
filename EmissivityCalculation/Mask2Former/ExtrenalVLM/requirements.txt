@@ -1,0 +1,56 @@
+# review_low_confidence.py. Runs in C:\venvs\emissivity like the rest of the
+# module, but deliberately does not need it: this stage loads no segmentation
+# or CLIP model. It reads a finished run's segments.json, draws on the ZED
+# PNGs, and calls a vision model -- local by default, remote with --use-api.
+numpy               # the mask, the outline band, the frame array
+pillow              # reads the ZED PNG, downscales and JPEG-encodes the request image
+ollama               # local engine: talks to the Ollama server (client.chat)
+pydantic             # the structured-output schema, shared by all four engines
+
+# Needed ONLY with --use-api, and only the ONE package matching whichever key
+# you set -- not all three. Which provider runs is auto-detected from which
+# key is in the environment (see the module docstring / README):
+#   anthropic     -- ANTHROPIC_API_KEY -> Claude API
+#   google-genai  -- GEMINI_API_KEY    -> Gemini API
+#   openai        -- OPENAI_API_KEY    -> OpenAI API
+#
+# Local engine setup (default, no key, no cost):
+#   1. Install Ollama: https://ollama.com
+#   2. ollama pull moondream
+#   3. Leave the Ollama app running (or `ollama serve`) before this script runs
+#
+# Cloud engine setup (--use-api) -- pick ONE provider:
+#   Claude : pip install anthropic  | key: https://platform.claude.com (~$5 free, no card)
+#            set ANTHROPIC_API_KEY=...
+#   Gemini : pip install google-genai | key: https://aistudio.google.com/apikey
+#            set GEMINI_API_KEY=...
+#   OpenAI : pip install openai     | key: https://platform.openai.com/api-keys
+#            set OPENAI_API_KEY=...
+# Never read from a file or an argument -- environment only.
+
+# NOT needed, and deliberately not imported:
+#   torch / transformers -- nothing here runs CLIP or Mask2Former. The whole
+#                           point of this stage is that it runs AFTER them, on
+#                           their output, so a review pass never reloads a
+#                           checkpoint.
+#   pandas               -- the same call ../../GroundTruth/gt_common.py and
+#                           ../m2f_materials/category_prior.py make: the
+#                           emissivity table is a 20-row CSV and the stdlib csv
+#                           module reads it. Importing ../../emissivity/table.py
+#                           for it would run ../../emissivity/__init__.py, which
+#                           pulls in torch and scikit-image.
+#   opencv               -- the outline is a numpy XOR plus a few dilation
+#                           passes, and pillow does the scale and the encode.
+#   the two cloud SDKs you are NOT using -- e.g. install only `openai` if
+#                           OPENAI_API_KEY is what you set. All three cloud
+#                           imports are lazy (inside their run_<provider>
+#                           function), so an unused provider's package being
+#                           absent never breaks the other two or the local
+#                           engine.
+#
+# One real caveat from building this against a live Gemini key: a dated
+# model name (gemini-2.5-flash, this module's first default) got retired for
+# new-project keys mid-project, with only a 404 at request time as warning.
+# The Gemini default here is gemini-flash-latest -- a rolling alias -- for
+# exactly that reason. If you pin --model to a dated Gemini snapshot, watch
+# for the same failure mode.

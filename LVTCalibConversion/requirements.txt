@@ -1,2 +1,6 @@
 # convert_livox_bag.py
 rosbags
+
+# RecordCheck/ (zed_pose_detect.py, lidar_pose_detect.py, lidar_quality_check.py)
+numpy
+opencv-python

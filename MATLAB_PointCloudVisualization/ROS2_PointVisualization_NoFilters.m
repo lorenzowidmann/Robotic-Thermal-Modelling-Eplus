@@ -13,7 +13,7 @@ close all
 clc
 
 %% 1. Parameters
-bagPath    = "C:\Users\loren\Desktop\Dati_vfinal\SLAM\Lidar\rosbag2_2026_07_30-17_50_45\rosbag2_2026_07_30-17_50_45_0.db3";
+bagPath    = "C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Lidar\rosbag2_2026_09_11-12_50_10\rosbag2_2026_09_11-12_50_10_0.db3";
 topicName  = '/cloud_registered';
 
 frameStep  = 1;      % 1 = all frames. Raise it (e.g. 5) if memory is not enough.
