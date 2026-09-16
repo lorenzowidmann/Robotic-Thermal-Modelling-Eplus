@@ -13,15 +13,23 @@ This is a **sanity check on the projection chain**, not the radiometric fusion
 itself — that lives in `../SensorFusionLoader/`.
 
 <p align="center">
-  <img src="output/flir_on_zed_session9_pose09.png" width="720" alt="FLIR radiometric values projected onto the ZED frame, session 9 pose 09"><br>
-  <em>Session 9, pose 09 — FLIR values (colormap <code>hot</code>) sampled through
-  the LiDAR cloud and scattered onto the ZED frame.</em>
+  <img src="output/calib1_vs_calib2_125010_pose75_doorzoom.png" width="720" alt="Same cloud and frame, calib1 extrinsics on the left, calib2 on the right"><br>
+  <em>Session 12_50_10, pose 75 — FLIR values (colormap <code>hot</code>) sampled
+  through the LiDAR cloud and scattered onto the ZED frame. Left: calib1
+  extrinsics. Right: calib2. The warm patch of the open doorway sits on the
+  doorway only in the right panel.</em>
 </p>
 
 | file | what it does |
 |---|---|
-| `FlirLidarZedViewer.m` | the viewer. Loads a triplet, projects into both cameras, draws the overlay. Arrow keys step through poses without reopening the bag. |
-| `output/` | saved PNGs, `flir_on_zed_session9_pose<NN>.png`. Created automatically. |
+| `FlirLidarZedViewer_calib1.m` | the viewer, session 9 + the `Exttr_tryN` **min3d** extrinsics. Loads a triplet, projects into both cameras, draws the overlay. Arrow keys step through poses without reopening the bag. |
+| `FlirLidarZedViewer_calib2.m` | same viewer, NewAcquisitions ground-truth session `12_50_10` + the `NewCalibration` **min2d** extrinsics. |
+| `output/` | saved PNGs, `flir_on_zed_<session>_pose<NN>.png`. Created automatically. |
+
+The two files differ **only** in the hard-coded block at the top (paths + the two
+`T_lidar_to_cam`); the projection chain is identical. Intrinsics are the same in
+both: the NewCalibration session ran on the same `thermal_intrinsic.yaml` /
+`zed_right_intrinsic.yaml`, i.e. the same MATLAB no-skew models.
 
 ## Usage
 
@@ -31,8 +39,8 @@ no event loop is left to listen for keys.
 
 ```matlab
 cd 'C:\Users\loren\Desktop\Measurment_v2\ClaudeCode\RTM-EPlus\MATLAB_SensorFusionValidation'
-FlirLidarZedViewer        % starts at pose 9
-FlirLidarZedViewer(30)    % starts at pose 30
+FlirLidarZedViewer_calib2        % starts at pose 9
+FlirLidarZedViewer_calib2(30)    % starts at pose 30  (0..116 on this session)
 ```
 
 Keys (the figure window must have focus):
@@ -66,10 +74,28 @@ Keys (the figure window must have focus):
 
 Both extrinsics are hard-coded results, adopted from the LVT2Calib sessions:
 
+`_calib1.m` — session `Exttr_tryN`, **min3d** fits:
+
 | transform | poses used | min3D RMSE |
 |---|---|---|
 | LiDAR → FLIR | 6 clean (01,02,03,05,07,08) | 5.8 cm |
 | LiDAR → ZED (right eye) | 8 (01,02,03,05,07,08,09,10) | 6.8 cm |
+
+`_calib2.m` — session `NewCalibration`, **min2d** fits. min3d was rejected on
+both pairs in that session because its translation jumps by 20-30 cm when a
+single pose is dropped, while min2d stays within ~1 cm — and for this tool the
+metric that matters is the reprojection, not the 3D distance:
+
+| transform | poses used | min2D RMSE | reproj |
+|---|---|---|---|
+| LiDAR → FLIR | 8 (1,4,6,10,12,16,18,19), dropped by range discrepancy | 11.0 cm | 0.65 px |
+| LiDAR → ZED (right eye) | 7 of 9 (3 and 10 dropped: a 266/287 mm side instead of 300) | 7.0 cm | 1.17 px |
+
+Switching calib1 → calib2 moves the projection of the same cloud by **11-16 px
+mean in the ZED** (du ≈ −10 to −13, dv ≈ −6 to −9, max ~25 px) and **13-16 px in
+the FLIR** (du ≈ −8.9 constant, dv ≈ −9.6 to −13.5), i.e. the thermal value each
+LiDAR point picks up changes as well as where it is drawn. See
+`output/calib1_vs_calib2_125010_pose75*.png`.
 
 Intrinsics are the **no-skew** MATLAB models: FLIR Vue Pro R 336×256, ZED 2i
 right eye 1080p. Same values as `../SensorFusionLoader/rig_calibration.yaml` —
@@ -142,8 +168,10 @@ MATLAB with:
 
 ## Data it reads
 
-Paths are hard-coded at the top of the file (`sessionRoot` and below), all under
-`Dati_vfinal\SLAM\` — not tracked in this repo:
+Paths are hard-coded at the top of each file (`sessionRoot` and below), not
+tracked in this repo.
+
+`_calib1.m`, under `Dati_vfinal\SLAM\`:
 
 ```
 ZED/20260730_161223/fullrate/sync_manifest.json   triplets + /Odometry poses
@@ -151,3 +179,26 @@ ZED/20260730_161223/fullrate/frames/              ZED RGB frames
 Flir/session9_only_rot180/                        FLIR .npy, already rotated 180°
 Lidar/rosbag2_2026_07_30-18_12_20/                ROS2 bag, /cloud_registered
 ```
+
+`_calib2.m`, under `Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\`:
+
+```
+Zed/20260911_105024/sync_manifest.json            triplets + /Odometry poses
+Zed/20260911_105024/frames/                       ZED RGB frames
+Flir/session_125010_rot180/                       FLIR .npy, already rotated 180°
+Lidar/rosbag2_2026_09_11-12_50_10/                ROS2 bag, /cloud_registered
+```
+
+The calib2 ZED folder is the recorder's own output, **not** a `fullrate/`
+export: each frame already carries its measured `t_offset_s`, so
+`retime_fullrate_frames.py` does not apply. Its FLIR folders were rebuilt from
+`Flir/20251019_180000` (whose clock is wrong — date 2025-10-19, time ≈ UTC +
+7h18m; the event offset absorbs it) with:
+
+```
+py ../LVTCalibConversion/rotate_flir_poses.py --pose-dir <...>\Flir\session_125010 --npy
+```
+
+`rotate_flir_poses.py --npy` writes `<name>_R.npy`, but both consumers of the
+convention (`RadiometricCalibration/correct_session.py:139` and the `erase(…,'_R')`
+in these viewers) look for `<name>.npy` — the `_R` has to be dropped after the run.

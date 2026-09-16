@@ -179,6 +179,10 @@ def main():
     p.add_argument("--loop", action="store_true",
                    default=bool(rospy.get_param("~loop", False)),
                    help="Republish in a loop until shutdown.")
+    p.add_argument("--rotate180", action="store_true",
+                   default=bool(rospy.get_param("~rotate180", False)),
+                   help="Rotate each frame 180 degrees (FLIR mounted upside down; "
+                        "without this the extrinsic RMSE explodes, see project notes).")
     p.add_argument("--camera-info-file", default=rospy.get_param("~camera_info_file", ""),
                    help="Optional YAML intrinsics -> CameraInfo (NOT used by LVT2Calib).")
     args = p.parse_args(argv)
@@ -206,14 +210,19 @@ def main():
 
     def load(path):
         if args.image_mode == "raw":
-            return load_raw(path, args.exiftool, args.colormap, args.raw_byteswap)
-        return load_embedded(path)
+            img = load_raw(path, args.exiftool, args.colormap, args.raw_byteswap)
+        else:
+            img = load_embedded(path)
+        if img is not None and args.rotate180:
+            img = cv2.rotate(img, cv2.ROTATE_180)
+        return img
 
     rospy.loginfo(
         "flir_frame_publisher: dir=%s n=%d mode=%s topic=%s frame_id=%s "
-        "stamp=%s fps=%.2f rate=%.2f loop=%s",
+        "stamp=%s fps=%.2f rate=%.2f loop=%s rotate180=%s",
         image_dir, len(files), args.image_mode, args.image_topic,
         args.frame_id, args.stamp_mode, args.fps, args.rate_multiplier, args.loop,
+        args.rotate180,
     )
     rospy.sleep(0.5)  # let cam_pattern connect before the first frame
 

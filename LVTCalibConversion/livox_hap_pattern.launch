@@ -16,9 +16,20 @@
     <arg name="pz_min" default="0.0"/>
     <arg name="pz_max" default="1.2"/>
 
+    <!-- Numero di frame accumulati prima del passthrough (14/09/2026).
+         Default abbassato da 5 a 1: con 5 frame sovrapposti la densita' della
+         nuvola quintuplica, e poiche' boundEstRad/normEstRad sono conteggi di
+         VICINI K (non raggi metrici) la stima del bordo cambia natura e il
+         template matching in isCalibBoard() fallisce quasi sempre. Sintomo
+         tipico: la board viene trovata solo sul primissimo cloud dopo il
+         lancio (quando il buffer di point_cloud_accumulation e' ancora
+         parzialmente vuoto, quindi 1 solo frame), poi mai piu'.
+         Sovrascrivibile da riga di comando con acc_num:=N -->
+    <arg name="acc_num" default="3"/>
+
     <include file="$(find lvt2calib)/launch/point_cloud_accumulation.launch">
         <arg name="cloud_in_pc2" value="$(arg cloud_tp)"/>
-        <arg name="acc_num" value="5"/>
+        <arg name="acc_num" value="$(arg acc_num)"/>
         <arg name="ns_" value="$(arg ns_)"/>
     </include>
 
