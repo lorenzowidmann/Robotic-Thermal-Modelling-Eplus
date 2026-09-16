@@ -36,8 +36,8 @@ close all
 clc
 
 %% 1. Parameters
-sessionDir = 'C:\Users\loren\Desktop\Dati_vfinal\SLAM\ZED\20260730_161223\fullrate';
-flirDir    = 'C:\Users\loren\Desktop\Dati_vfinal\SLAM\Flir\session9_only_rot180';
+sessionDir = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Zed\20260911_094055\fullrate';
+flirDir    = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Flir\session_A1_rot180';
 
 % Name of the corrected file to read in each emissivity_map\<stem>\, and the
 % materials folder the readout text ("segment N = material") comes from.
@@ -49,8 +49,8 @@ flirDir    = 'C:\Users\loren\Desktop\Dati_vfinal\SLAM\Flir\session9_only_rot180'
 % already be read together with this file, not with the old
 % corrected_temperature.npy (which on disk is still the very first run,
 % single-view, and is no longer consistent with emissivity_used).
-correctedName = 'corrected_temperature_m2f_consensus.npy';
-materialDirName = 'material_map_m2f_consensus';
+correctedName = 'corrected_temperature.npy';
+materialDirName = 'material_map_consensus';
 
 % The arguments, if passed, take precedence over the defaults above.
 if nargin >= 1 && ~isempty(sessionDirIn)
