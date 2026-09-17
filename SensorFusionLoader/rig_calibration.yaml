@@ -16,8 +16,12 @@
 #      same one lvt2calib/data/camera_info/zed_right_intrinsic.yaml has been
 #      using since that date -- this file was simply the last one left on the
 #      obsolete 1280x720 values)
-#   - risultato_calibrazione_estrinseca_lidar_flir.md
-#   - risultato_calibrazione_estrinseca_lidar_zed.md
+#   - extrinsic_calibration_flir_newcalibration.md
+#     (2026-09-14 NewCalibration session, SUPERSEDES
+#     risultato_calibrazione_estrinseca_lidar_flir.md / Exttr_tryN below)
+#   - risultato_calibrazione_estrinseca_lidar_zed_newcalibration.md
+#     (2026-09-14 NewCalibration session, SUPERSEDES
+#     risultato_calibrazione_estrinseca_lidar_zed.md / Exttr_tryN below)
 
 schema: rig_calibration/v1
 
@@ -70,39 +74,42 @@ zed:
     - "The lidar_to_zed extrinsic below is CONSISTENT with these intrinsics: lvt2calib/data/camera_info/zed_right_intrinsic.yaml was already updated to this exact MATLAB result on 2026-08-02 (old 1280x720 file kept as zed_right_intrinsic_OLD_backup_20260802.yaml), and the Exttr_tryN extrinsic session ran 2026-08-03, i.e. after. No re-solve needed."
 
 lidar_to_flir:
-  source: risultato_calibrazione_estrinseca_lidar_flir.md
-  date: 2026-08-03
-  tool: "LVT2Calib extrinsic_calib_l2c, min3d fit, 6 clean poses (01,02,03,05,07,08) of 10 collected"
-  session: Exttr_tryN
+  source: extrinsic_calibration_flir_newcalibration.md
+  date: 2026-09-14
+  tool: "LVT2Calib extrinsic_calib_l2c, min2d fit, 8 poses (1,4,6,10,12,16,18,19 of 12 collected), discarded by LiDAR<->camera range-diff (validated proxy, not post-hoc RMSE)"
+  session: NewCalibration
   # Row-major 4x4, maps a point in the LiDAR/laser frame to the FLIR camera
   # frame: p_cam = T @ [x, y, z, 1]  (p_cam then goes through flir.K/dist to
   # get pixels). Requires the SAME 180-degree FLIR image rotation used to
   # derive it (see flir.rotated_180_before_calibration above).
   T_lidar_to_cam:
-    - [ 0.048992,   -0.998798, -0.00174722,  -0.107859]
-    - [ 0.0621242,   0.00479317, -0.998057,  -0.0426556]
-    - [ 0.996865,    0.0487882,  0.0622843,  -0.0135286]
-    - [ 0.0,         0.0,        0.0,         1.0]
-  rmse_3d_m: 0.0581397
-  reproj_px: 0.844049
+    - [ 0.0341815,  -0.999411,  -0.00291375, -0.113658]
+    - [ 0.0176056,   0.00351714, -0.999839,   0.122095]
+    - [ 0.999261,    0.0341247,   0.0177155, -0.0039121]
+    - [ 0.0,         0.0,         0.0,         1.0]
+  rmse_3d_m: 0.110148
+  reproj_px: 0.647362
   caveats:
-    - "Only 6/10 poses used (below the 9-pose literature minimum); RMSE with 6 clean poses (5.8cm) matched a 3-pose isolated test (5.7cm) and was much better than all 10 poses (18.4cm) -- the 4 excluded poses (04,06,09,11) had identifiable per-pose issues (short capture windows / low-contrast preprocessing), not just noise."
-    - "6cm RMSE is fine for qualitative/zone-level thermal-bridge analysis, not for precise pixel-perfect edges."
+    - "SUPERSEDES the 2026-08-03 Exttr_tryN result (RMSE 5.81cm, 6/10 poses) as of this edit. RMSE 3D is WORSE here (11.0cm vs 5.8cm), but reprojection -- the metric that matters for pixel projection -- is near-identical (0.65px vs 0.66px). Structural cause: depth is the weakly-observable direction for a planar-board homography, and the FLIR's much lower resolution (f~570px vs f~1412px for the ZED) means the same 1px centre-detection error costs more than double the depth error at ~4.1m range -- not a fixable procedural issue at this distance/resolution."
+    - "min2d chosen over min3d: on this same 8-pose set min3d gives a wildly different translation (0.009, 0.033, -0.027 vs -0.114, 0.122, -0.004), and a stability test (refit after dropping just 1 pose) moved min3d by 20-28cm on x/y while min2d moved <1cm -- min3d is ill-conditioned here, min2d is the stable regressor."
+    - "Unexplained ~10cm systematic shift on y vs the Exttr_tryN result (0.122 vs 0.015), consistent across every pose subset tried in this session -- not confidently attributed to rig movement (a bolted rig should not show 10cm of play, and the ZED pair only shifted ~4.8cm between the same two sessions). Verify with a direct physical measurement if this matters downstream."
+    - "11.0cm RMSE is fine for qualitative/zone-level thermal-bridge analysis, not for precise pixel-perfect edges."
 
 lidar_to_zed:
-  source: risultato_calibrazione_estrinseca_lidar_zed.md
-  date: 2026-08-03
-  tool: "LVT2Calib extrinsic_calib_l2c, min3d fit, 8 clean poses (01,02,03,05,07,08,09,10) of 10 collected"
-  session: Exttr_tryN
+  source: risultato_calibrazione_estrinseca_lidar_zed_newcalibration.md
+  date: 2026-09-14
+  tool: "LVT2Calib extrinsic_calib_l2c, min2d fit, 7 poses (of 9 collected), discarded by measurable board-shape defect (two centres closer than the nominal 300mm)"
+  session: NewCalibration
   # Same convention as lidar_to_flir.T_lidar_to_cam, no image rotation needed
   # for ZED (orientation confirmed correct by the user during this session).
   T_lidar_to_cam:
-    - [ 0.00758424, -0.999954,  -0.00584239, -0.0992363]
-    - [-0.0387419,   0.00554434, -0.999234,   0.0888694]
-    - [ 0.99922,     0.00780478, -0.0386981, -0.000231952]
-    - [ 0.0,         0.0,         0.0,        1.0]
-  rmse_3d_m: 0.0678418
-  reproj_px: 2.17729
+    - [-0.00934483, -0.999952,  -0.00297536, -0.0360382]
+    - [-0.0490803,   0.00343057, -0.998789,   0.12584]
+    - [ 0.998751,   -0.00918748, -0.04911,     0.010033]
+    - [ 0.0,         0.0,         0.0,         1.0]
+  rmse_3d_m: 0.0703013
+  reproj_px: 1.17187
   caveats:
-    - "8/10 poses used (below the 9-pose literature minimum, by one); improvement to 8 poses was monotonic and confirmed by repeated T7 runs (10->9->8->7 poses), not just a shape-check heuristic."
-    - "6.8cm RMSE 3D is slightly worse than the FLIR pair (5.8cm) but 2D reprojection is comparable order of magnitude (1.7-2.2px vs 0.66-0.84px for FLIR)."
+    - "SUPERSEDES the 2026-08-03 Exttr_tryN result (RMSE 6.78cm, 8/10 poses) as of this edit. RMSE 3D is comparable (7.0cm vs 6.8cm); the reason to switch is translation STABILITY across pose subsets -- min3d on this data swings the estimated y by up to 30cm between the 6/7/9-pose subsets (a sign of an ill-conditioned fit, confirmed since its RMSE improves monotonically while the parameter itself does not converge), while min2d stays within 2-3cm across the same subsets."
+    - "7/9 poses used (below the 9-pose literature minimum, by two); the 2 discarded poses (3, 10) have an independently measurable defect -- board sides of 266mm/287mm instead of the nominal 300mm -- not a post-hoc RMSE-driven exclusion."
+    - "7.0cm RMSE 3D is comparable order of magnitude to the FLIR pair (11.0cm); 2D reprojection is worse (1.17px vs 0.65px for FLIR) but still fine for zone-level work."

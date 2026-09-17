@@ -49,8 +49,19 @@ flirDir    = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroun
 % already be read together with this file, not with the old
 % corrected_temperature.npy (which on disk is still the very first run,
 % single-view, and is no longer consistent with emissivity_used).
-correctedName = 'corrected_temperature.npy';
+correctedName = 'corrected_temperature_debiased.npy';
 materialDirName = 'material_map_consensus';
+
+% Third panel: the ZED frame with the Mask2Former segmentation drawn on it
+% (classify_session_m2f.py's own --overlay output, region contours +
+% material labels on the ZED RGB image -- what the material call for each
+% FLIR pixel actually came from). Off by default: it lives in
+% material_map_m2f\<stem>\overlay.png, not in materialDirName above (the
+% *_consensus folder voxel_consensus.py writes only has labels.npy /
+% segments.json, no image), so a session run without --overlay on
+% classify_session_m2f.py has nothing to show here.
+showZedOverlay = true;
+overlayDirName = 'material_map_m2f';
 
 % The arguments, if passed, take precedence over the defaults above.
 if nargin >= 1 && ~isempty(sessionDirIn)
@@ -72,6 +83,32 @@ end
 if ~isfolder(materialDir)
     warning('Materials folder not found: %s (the readout will not show materials)', materialDir);
 end
+overlayDir = fullfile(sessionDir, overlayDirName);
+if showZedOverlay && ~isfolder(overlayDir)
+    warning('ZED overlay folder not found: %s (3rd panel will stay blank)', overlayDir);
+end
+
+% If correctedName is a debiased file written by estimate_offset.py --apply,
+% offset_report.json says so (applied_to) and names the pre-debias file it
+% was computed from (corrected_name) -- read here, before the frames are
+% listed below, so both files' paths can be recorded per frame. This is what
+% lets the readout split "how much the radiometric correction changed the
+% pixel" from "how much the sensor-offset subtraction changed it", instead of
+% only reporting their sum.
+sessOffset      = 0;
+rawCorrectedName = correctedName;
+offsetReportPath = fullfile(sessionDir, 'offset_report.json');
+if isfile(offsetReportPath)
+    offRep = jsondecode(fileread(offsetReportPath));
+    if isfield(offRep, 'applied_to') && ischar(offRep.applied_to) ...
+            && strcmp(correctedName, offRep.applied_to)
+        sessOffset       = offRep.offset_c;
+        rawCorrectedName = offRep.corrected_name;
+        fprintf('Debiased AFTER file detected (offset_report.json): %s = %s %+.2f C\n', ...
+            correctedName, rawCorrectedName, -sessOffset);
+    end
+end
+splitCorrection = ~strcmp(correctedName, rawCorrectedName);
 
 %% 2. List of corrected frames
 % A frame is usable only if both the apparent .npy and the correction exist:
@@ -79,19 +116,29 @@ end
 d = dir(fullfile(emisDir, '*'));
 d = d([d.isdir] & ~ismember({d.name}, {'.', '..'}));
 
-frames = struct('stem', {}, 'apparentPath', {}, 'correctedPath', {}, 'dir', {});
+frames = struct('stem', {}, 'apparentPath', {}, 'correctedPath', {}, ...
+                 'correctedRawPath', {}, 'overlayPath', {}, 'dir', {});
 for k = 1:numel(d)
     stem = d(k).name;                       % e.g. 20250906_233144_R
     frameDir = fullfile(emisDir, stem);
     corrPath = fullfile(frameDir, correctedName);
+    corrRawPath = fullfile(frameDir, rawCorrectedName);
 
     % The raw FLIR .npy does not have the folder name's _R suffix.
     appPath = fullfile(flirDir, [strrep(stem, '_R', '') '.npy']);
+
+    % Optional: missing for any frame classify_session_m2f.py ran without
+    % --overlay for, or if overlayDirName does not match how it was run.
+    % Never gates a frame out -- same "best effort" treatment as the other
+    % accessory files (emissivity_used.npy, distance.npy, ...) below.
+    overlayPath = fullfile(overlayDir, stem, 'overlay.png');
 
     if isfile(corrPath) && isfile(appPath)
         frames(end+1) = struct('stem', stem, ...
                                'apparentPath', appPath, ...
                                'correctedPath', corrPath, ...
+                               'correctedRawPath', corrRawPath, ...
+                               'overlayPath', overlayPath, ...
                                'dir', frameDir); %#ok<AGROW>
     end
 end
@@ -141,12 +188,19 @@ if ~isempty(fMax)
     fprintf('  (real extremes %.1f .. %.1f C, tails excluded)', min(fMin), max(fMax));
 end
 fprintf('\n');
+% sessOffset (and whether correctedName is a debiased file) was already
+% determined above, before the frames were listed -- reused here for the
+% AFTER panel's fixed-scale shift, same as for the readout split below.
 
 %% 4. Interface state
-S.frames      = frames;
-S.nFrames     = nFrames;
-S.idx         = 1;
-S.sessClim    = [sessMin sessMax];
+S.frames        = frames;
+S.nFrames       = nFrames;
+S.idx           = 1;
+S.sessClimApp   = [sessMin sessMax];
+S.sessClimCorr  = [sessMin sessMax] - sessOffset;
+S.sessOffset      = sessOffset;       % 0 unless correctedName is a debiased file
+S.splitCorrection = splitCorrection;  % true -> readout splits radiometric vs sensor-offset
+S.showZedOverlay  = showZedOverlay;   % true -> 3rd panel, the ZED Mask2Former overlay
 S.lockedClim  = true;    % true = fixed session scale, false = per frame
 S.showSamples = false;   % overlay of the direct LiDAR samples
 S.showSegs    = true;    % overlay of the superpixel boundaries (SLIC grid)
@@ -160,12 +214,37 @@ S.fig = figure('Name', 'Radiometric correction - apparent vs corrected (consensu
                'NumberTitle', 'off', 'Color', 'w', ...
                'Units', 'normalized', 'Position', [0.08 0.15 0.84 0.70]);
 
-S.axApp  = subplot(1, 2, 1, 'Parent', S.fig);
-S.axCorr = subplot(1, 2, 2, 'Parent', S.fig);
+if S.showZedOverlay
+    nCols = 3;
+    S.axZed  = subplot(1, nCols, 1, 'Parent', S.fig);
+    S.axApp  = subplot(1, nCols, 2, 'Parent', S.fig);
+    S.axCorr = subplot(1, nCols, 3, 'Parent', S.fig);
+    % Plain RGB display: overlay.png already has the segment contours and
+    % material labels burned in by classify_session_m2f.py, so this panel
+    % needs no colorbar, no cursor marker, no boundary/sample overlay of its
+    % own -- those already exist inside the image.
+    S.imZed = image(S.axZed, zeros(2, 2, 3, 'uint8'));
+    axis(S.axZed, 'image', 'off');
+    disableDefaultInteractivity(S.axZed);
+    S.axZed.Toolbar.Visible = 'off';
+else
+    nCols = 2;
+    S.axApp  = subplot(1, nCols, 1, 'Parent', S.fig);
+    S.axCorr = subplot(1, nCols, 2, 'Parent', S.fig);
+end
 
 S.imApp  = imagesc(S.axApp,  zeros(2));
 S.imCorr = imagesc(S.axCorr, zeros(2));
 axis(S.axApp,  'image'); axis(S.axCorr, 'image');
+% Disabled on every axes (not just the new ZED one): MATLAB's default
+% axes-toolbar interactions (zoom/pan/datatip) can grab the mouse/keyboard
+% and silently stop WindowKeyPressFcn/WindowButtonDownFcn below from firing
+% if one of them gets toggled on by an accidental click -- more axes (now 3
+% instead of 2) meant more places for that to happen.
+disableDefaultInteractivity(S.axApp);
+disableDefaultInteractivity(S.axCorr);
+S.axApp.Toolbar.Visible  = 'off';
+S.axCorr.Toolbar.Visible = 'off';
 colormap(S.fig, inferno_like());
 cb1 = colorbar(S.axApp);  cb1.Label.String = 'deg C';
 cb2 = colorbar(S.axCorr); cb2.Label.String = 'deg C';
@@ -209,6 +288,19 @@ key = matlab.lang.makeValidName(f.stem);
 if ~isfield(S.cache, key)
     D.apparent  = readNPY(f.apparentPath);
     D.corrected = readNPY(f.correctedPath);
+    % Only distinct from D.corrected when correctedName is a debiased file
+    % (S.splitCorrection); reading it lets the readout split the total
+    % BEFORE->AFTER change into its two causes (see updateReadout).
+    if S.splitCorrection
+        D.correctedRaw = readNPY(f.correctedRawPath);
+    else
+        D.correctedRaw = D.corrected;
+    end
+    if S.showZedOverlay
+        D.zedOverlay = tryReadImage(f.overlayPath);
+    else
+        D.zedOverlay = [];
+    end
 
     % The accessory files may be missing: reading is still possible, just
     % without emissivity / distance / material.
@@ -245,10 +337,30 @@ set(S.imCorr, 'CData', D.corrected);
 set(S.axApp,  'XLim', [0.5 w+0.5], 'YLim', [0.5 h+0.5]);
 set(S.axCorr, 'XLim', [0.5 w+0.5], 'YLim', [0.5 h+0.5]);
 
+if S.showZedOverlay
+    if ~isempty(D.zedOverlay)
+        [hz, wz, ~] = size(D.zedOverlay);
+        set(S.imZed, 'CData', D.zedOverlay);
+        set(S.axZed, 'XLim', [0.5 wz+0.5], 'YLim', [0.5 hz+0.5]);
+        title(S.axZed, sprintf('ZED - Mask2Former segmentation (--overlay)\n%s', f.stem), ...
+              'FontSize', 9, 'Interpreter', 'none');
+    else
+        set(S.imZed, 'CData', zeros(2, 2, 3, 'uint8'));
+        set(S.axZed, 'XLim', [0.5 2.5], 'YLim', [0.5 2.5]);
+        title(S.axZed, sprintf('overlay.png not found\n%s', f.stem), ...
+              'FontSize', 9, 'Interpreter', 'none', 'Color', [0.6 0.2 0.2]);
+    end
+end
+
 if S.lockedClim
-    clim(S.axApp,  S.sessClim);
-    clim(S.axCorr, S.sessClim);
-    climTag = sprintf('fixed scale %.1f-%.1f C', S.sessClim(1), S.sessClim(2));
+    clim(S.axApp,  S.sessClimApp);
+    clim(S.axCorr, S.sessClimCorr);
+    if isequal(S.sessClimApp, S.sessClimCorr)
+        climTag = sprintf('fixed scale %.1f-%.1f C', S.sessClimApp(1), S.sessClimApp(2));
+    else
+        climTag = sprintf('fixed scale (before %.1f-%.1f C, after %.1f-%.1f C)', ...
+            S.sessClimApp(1), S.sessClimApp(2), S.sessClimCorr(1), S.sessClimCorr(2));
+    end
 else
     clim(S.axApp,  robustClim(D.apparent));
     clim(S.axCorr, robustClim(D.corrected));
@@ -316,6 +428,21 @@ if isnan(tAfter)
 else
     line1 = sprintf('x=%3d y=%3d   BEFORE %6.2f C   AFTER %6.2f C   DELTA %+5.2f C', ...
                     xi, yi, tBefore, tAfter, delta);
+    % Split the total change into its two independent causes, so a large
+    % DELTA is never read as "the radiometric correction did that": when
+    % correctedName is a debiased file, most of it is usually the flat
+    % sensor-offset subtraction (same S.sessOffset everywhere), not the
+    % per-pixel radiometric correction (emissivity/atmosphere, S.correctedRaw
+    % vs D.apparent), which is typically well under 1 C indoors.
+    if S.splitCorrection
+        tAfterRaw = double(D.correctedRaw(yi, xi));
+        if ~isnan(tAfterRaw)
+            deltaRadiometric = tAfterRaw - tBefore;
+            deltaOffset      = tAfter - tAfterRaw;   % == -S.sessOffset
+            line1 = sprintf('%s   [radiometric %+5.2f C, sensor-offset %+5.2f C]', ...
+                            line1, deltaRadiometric, deltaOffset);
+        end
+    end
 end
 
 % Second line: where that correction comes from.
@@ -521,6 +648,25 @@ function A = tryReadNPY(path)
 if isfile(path)
     A = readNPY(path);
 else
+    A = [];
+end
+end
+
+
+function A = tryReadImage(path)
+%TRYREADIMAGE Reads a PNG/JPEG as RGB uint8, or returns [] if missing or
+% unreadable (never errors out the whole viewer over one missing overlay).
+if ~isfile(path)
+    A = [];
+    return
+end
+try
+    A = imread(path);
+    if size(A, 3) == 1
+        A = repmat(A, 1, 1, 3);   % grayscale -> RGB, so CData stays 3-D always
+    end
+catch err
+    warning('Could not read %s: %s', path, err.message);
     A = [];
 end
 end
