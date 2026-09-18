@@ -30,6 +30,7 @@ Usage:
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 import cv2
@@ -50,12 +51,24 @@ def read_pointcloud2(msg) -> np.ndarray:
     return xyz[np.isfinite(xyz).all(axis=1)]
 
 
-def nearest_clouds_for_targets(bag: Path, target_epochs: list[float], topic: str, store: str) -> list[tuple[float, np.ndarray] | None]:
+def nearest_clouds_for_targets(bag: Path, target_epochs: list[float], topic: str, store: str,
+                               progress: bool = True) -> list[tuple[float, np.ndarray] | None]:
     """One pass over the bag; for each target epoch, return the (timestamp,
-    points) of the /cloud_registered message closest to it."""
+    points) of the /cloud_registered message closest to it.
+
+    Normally sub-second (PointCloud2 deserialises cheaply, its point data
+    stays a raw byte blob until read_pointcloud2 is called), but this same
+    call has been observed to take 30+ minutes under system memory pressure
+    with nothing to show for it in the meantime -- progress (on by default)
+    prints one flushed heartbeat per raw message processed (every 100) plus a
+    line whenever a target finalizes, so a stuck-looking run can be told apart
+    from a genuinely slow one instead of staring at zero output either way.
+    """
     n = len(target_epochs)
     best = [None] * n       # (dt, t, points) per still-open target
     finalized = [None] * n  # (t, points) once we've passed the minimum
+    n_finalized = 0
+    t_start = time.time()
 
     typestore = get_typestore(Stores[store])
     with AnyReader([bag], default_typestore=typestore) as reader:
@@ -64,7 +77,10 @@ def nearest_clouds_for_targets(bag: Path, target_epochs: list[float], topic: str
             topics = sorted({c.topic for c in reader.connections})
             raise SystemExit(f"Topic {topic!r} not found in bag. Available: {topics}")
 
-        for connection, _bagts, rawdata in reader.messages(connections=conns):
+        for k, (connection, _bagts, rawdata) in enumerate(reader.messages(connections=conns)):
+            if progress and k % 100 == 0:
+                print(f"  {topic}: message {k}, {n_finalized}/{n} target(s) finalized, "
+                      f"{time.time() - t_start:.1f}s elapsed", flush=True)
             msg = reader.deserialize(rawdata, connection.msgtype)
             stamp = msg.header.stamp
             t = float(stamp.sec) + float(stamp.nanosec) * 1e-9
@@ -82,32 +98,53 @@ def nearest_clouds_for_targets(bag: Path, target_epochs: list[float], topic: str
                     # timestamps are increasing; once we're past the target
                     # and the distance stopped improving, that minimum is final
                     finalized[i] = (cur[1], cur[2])
+                    n_finalized += 1
 
     for i in range(n):
         if finalized[i] is None and best[i] is not None:
             finalized[i] = (best[i][1], best[i][2])
+    if progress:
+        print(f"  {topic}: done, {time.time() - t_start:.1f}s total", flush=True)
     return finalized
 
 
-def nearest_fill(values: np.ndarray, sampled: np.ndarray, chunk_rows: int = 32) -> np.ndarray:
-    """Brute-force nearest-neighbor fill: every unsampled pixel gets the
-    value of the closest sampled pixel (Euclidean, in pixel space). No
-    scipy/cv2 special functions needed -- chunked to bound memory."""
-    h, w = sampled.shape
-    ys, xs = np.nonzero(sampled)
-    if len(ys) == 0:
-        return values.copy()
-    sample_coords = np.stack([ys, xs], axis=1).astype(np.float32)  # (S, 2)
-    sample_values = values[ys, xs]
+def nearest_fill(values: np.ndarray, sampled: np.ndarray) -> np.ndarray:
+    """Nearest-neighbor fill: every unsampled pixel gets the value of the
+    closest sampled pixel, in pixel space.
 
-    out = values.copy()
-    for r0 in range(0, h, chunk_rows):
-        r1 = min(r0 + chunk_rows, h)
-        yy, xx = np.mgrid[r0:r1, 0:w]
-        pix_coords = np.stack([yy.ravel(), xx.ravel()], axis=1).astype(np.float32)  # (P, 2)
-        d2 = ((pix_coords[:, None, :] - sample_coords[None, :, :]) ** 2).sum(axis=2)  # (P, S)
-        nearest = d2.argmin(axis=1)
-        out[r0:r1, :] = sample_values[nearest].reshape(r1 - r0, w)
+    Done with OpenCV's distance transform (DIST_LABEL_PIXEL gives every
+    individual seed pixel its own label, so the label image is exactly a
+    Voronoi partition of the samples) rather than the brute-force
+    pixel-vs-every-sample distance matrix this used to build. That matrix is
+    O(pixels x samples) and was tolerable only while /cloud_registered kept
+    the sample count near 6k; --raw-lidar pushes it to ~24k and the same call
+    goes to ~43 s, three times per frame. Measured on a real raw-lidar frame
+    (256x336, 24079 samples): 42.9 s -> 0.012 s, i.e. ~3600x.
+
+    The label pass uses DIST_L2 with a 5x5 mask, which approximates Euclidean
+    distance instead of computing it exactly (the exact DIST_MASK_PRECISE mode
+    does not return labels). Measured cost of that approximation on the same
+    frame, over the filled pixels only: segment ids differ on 0.17% of them,
+    and distances by 5 mm on average (p99 8 cm). Both land inside terrain that
+    sampled_mask already marks as interpolated rather than measured, and 8 cm
+    is the same order as the rig's own extrinsic RMSE, so the approximation is
+    not what limits this map.
+    """
+    if not sampled.any():
+        return values.copy()
+
+    # distanceTransform measures distance TO zero pixels, so the samples are
+    # the zeros here and everything else is background to be filled.
+    src = np.where(sampled, 0, 255).astype(np.uint8)
+    _, labels = cv2.distanceTransformWithLabels(
+        src, cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL)
+
+    ys, xs = np.nonzero(sampled)
+    # Read each seed's own label back rather than assuming OpenCV numbers them
+    # in np.nonzero's order.
+    lut = np.zeros(int(labels.max()) + 1, dtype=values.dtype)
+    lut[labels[ys, xs]] = values[ys, xs]
+    out = lut[labels]
     out[sampled] = values[sampled]
     return out
 
@@ -124,11 +161,25 @@ def parse_args():
                     help="classify_session.py output root (default: <session-dir>/material_map)")
     p.add_argument("--out-dir", default=None, metavar="DIR",
                     help="Output root (default: <session-dir>/emissivity_map)")
-    p.add_argument("--odom-topic", default="/cloud_registered", metavar="NAME")
+    p.add_argument("--odom-topic", default="/cloud_registered", metavar="NAME",
+                    help="Despite the name, this is the CLOUD topic read for direct "
+                         "LiDAR samples (ignored when --raw-lidar is set, which always "
+                         "reads /livox/lidar + /Odometry instead)")
     p.add_argument("--store", default="ROS2_HUMBLE", metavar="NAME")
     p.add_argument("--every-n", type=int, default=1, metavar="N")
     p.add_argument("--limit", type=int, default=None, metavar="N")
     p.add_argument("--overlay", action="store_true", help="Save a QA PNG per frame")
+    p.add_argument("--raw-lidar", action="store_true",
+                    help="Read /livox/lidar (raw) instead of /cloud_registered "
+                         "(FAST-LIO's SLAM output). Measured on this rig's bags: "
+                         "~13x more points, ~3.5x wider azimuth, min range 1m instead "
+                         "of 4m -- FAST-LIO's preprocess/blind and mapping/fov_degree "
+                         "crop /cloud_registered tightly, well inside the ZED/FLIR "
+                         "overlap. Needs PointCloudElaboration/LivoxLidarOdometryLoader "
+                         "(world-frame registration + per-point deskew via /Odometry) "
+                         "-- see that module's docstring for the measurements this is "
+                         "based on. Slower per frame (~0.2s vs a few ms) but not by "
+                         "enough to matter (~15s for a 60-frame session, benchmarked).")
     return p.parse_args()
 
 
@@ -161,9 +212,18 @@ def main():
         print("Nothing to do -- no triplet has a matching material_map/ output.", file=sys.stderr)
         return 1
 
-    print(f"Fetching {len(work)} LiDAR scan(s) from {Path(args.bag).name} ...")
     target_epochs = [tr["lidar"]["timestamp_zedclock"] for tr in work]
-    clouds = nearest_clouds_for_targets(Path(args.bag), target_epochs, args.odom_topic, args.store)
+    if args.raw_lidar:
+        loader_dir = (Path(__file__).resolve().parent.parent
+                      / "PointCloudElaboration" / "LivoxLidarOdometryLoader")
+        sys.path.insert(0, str(loader_dir))
+        from livox_odometry_loader import nearest_clouds_for_targets as raw_ncft
+        print(f"Fetching {len(work)} LiDAR scan(s) from {Path(args.bag).name} "
+              f"(raw /livox/lidar, world-registered via /Odometry) ...", flush=True)
+        clouds = raw_ncft(Path(args.bag), target_epochs, "/livox/lidar", args.store)
+    else:
+        print(f"Fetching {len(work)} LiDAR scan(s) from {Path(args.bag).name} ...", flush=True)
+        clouds = nearest_clouds_for_targets(Path(args.bag), target_epochs, args.odom_topic, args.store)
 
     fh, fw = cal.flir.height, cal.flir.width
 
@@ -260,7 +320,8 @@ def main():
             cv2.imwrite(str(frame_dir / "overlay.png"), heat)
 
         print(f"{stem}: {n_in_scan} scan pts -> {int(valid.sum())} in both cams -> "
-              f"{n_direct} direct samples ({100.0 * n_direct / (fh * fw):.1f}% of FLIR frame)")
+              f"{n_direct} direct samples ({100.0 * n_direct / (fh * fw):.1f}% of FLIR frame)",
+              flush=True)
 
     print(f"Done. Output in {out_dir}")
     return 0

@@ -15,12 +15,12 @@ close all
 clc
 
 %% 1. Parameters
-csvPath = "C:\Users\loren\Desktop\Dati_vfinal\SLAM\ZED\20260730_161223\fullrate\voxel_map_m2f\thermal_voxels.csv";
+csvPath = "C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Zed\20260911_105024\fullrate\voxel_map\thermal_voxels.csv";
 
 % Optional Region Of Interest (ROI) filter, in metres, consistent with the
 % frame aligned by aligned_octree.py. Leave [] to not filter.
-roiXLimits = [12 Inf];   % e.g. [0 34]
-roiYLimits = [-1.8 2];   % e.g. [-1 2]
+roiXLimits = [-Inf 10];   % e.g. [0 34]
+roiYLimits = [];   % e.g. [-1 2]
 roiZLimits = [];   % e.g. [0 2]
 
 % Colormap and color range. [] = use the data's real min/max.

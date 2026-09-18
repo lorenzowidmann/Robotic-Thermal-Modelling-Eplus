@@ -36,8 +36,8 @@ close all
 clc
 
 %% 1. Parameters
-sessionDir = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Zed\20260911_094055\fullrate';
-flirDir    = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Flir\session_A1_rot180';
+sessionDir = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Zed\20260911_105024\fullrate';
+flirDir    = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Flir\session_125010_rot180';
 
 % Name of the corrected file to read in each emissivity_map\<stem>\, and the
 % materials folder the readout text ("segment N = material") comes from.
@@ -60,7 +60,7 @@ materialDirName = 'material_map_consensus';
 % *_consensus folder voxel_consensus.py writes only has labels.npy /
 % segments.json, no image), so a session run without --overlay on
 % classify_session_m2f.py has nothing to show here.
-showZedOverlay = true;
+showZedOverlay = false;
 overlayDirName = 'material_map_m2f';
 
 % The arguments, if passed, take precedence over the defaults above.

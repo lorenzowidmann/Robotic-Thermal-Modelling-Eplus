@@ -307,6 +307,7 @@ def nearest_clouds_for_targets(bag: Path, target_epochs: list[float],
                                odom_topic: str = ODOM_TOPIC, deskew: bool = True,
                                min_range: float = 0.0, max_range: float = 0.0,
                                point_filter_num: int = 1, traj: Trajectory | None = None,
+                               progress: bool = True,
                                ) -> list[tuple[float, np.ndarray] | None]:
     """For each target epoch, the nearest raw scan, transformed to world.
 
@@ -319,6 +320,14 @@ def nearest_clouds_for_targets(bag: Path, target_epochs: list[float],
     deserialises just those. Deserialising every message to find the nearest
     one would cost ~128 ms x 622 messages for data almost all of which is
     discarded.
+
+    The second pass is the slow one in practice, not from deserialising but
+    from world_cloud()'s per-point deskew (one pose SLERP per point, ~10-100k
+    points/message here vs ~1 order of magnitude fewer on /cloud_registered) --
+    easy to sit at for tens of minutes on a full session with nothing printed
+    otherwise, since callers only see this function's return value. progress
+    (on by default) prints one flushed line per matched message as it is
+    processed, so a long run has something to show while it works.
     """
     typestore = make_typestore(store)
     traj = traj if traj is not None else read_trajectory(bag, odom_topic, store, typestore)
@@ -332,7 +341,15 @@ def nearest_clouds_for_targets(bag: Path, target_epochs: list[float],
         k = int(np.abs(arr - float(target)).argmin())
         wanted.setdefault(k, []).append(i)
 
+    n_wanted = len(wanted)
+    if progress:
+        print(f"  {topic}: {len(stamps)} raw message(s) scanned, "
+              f"{n_wanted} matched to {len(target_epochs)} target(s), deskewing ...",
+              flush=True)
+
     out: list[tuple[float, np.ndarray] | None] = [None] * len(target_epochs)
+    n_done = 0
+    t_start = time.time()
     with AnyReader([bag], default_typestore=typestore) as reader:
         conns = [c for c in reader.connections if c.topic == topic]
         for k, (connection, _bagts, rawdata) in enumerate(reader.messages(connections=conns)):
@@ -345,6 +362,13 @@ def nearest_clouds_for_targets(bag: Path, target_epochs: list[float],
                               point_filter_num=point_filter_num)
             for i in wanted[k]:
                 out[i] = (base, pts)
+            n_done += 1
+            if progress:
+                elapsed = time.time() - t_start
+                rate = elapsed / n_done
+                eta = rate * (n_wanted - n_done)
+                print(f"  scan {n_done}/{n_wanted}  {pts.shape[0]:6d} pts  "
+                      f"{elapsed:6.1f}s elapsed  ~{eta:6.1f}s left", flush=True)
     return out
 
 
