@@ -4,3 +4,6 @@ graphify-out/
 # Python bytecode cache
 __pycache__/
 *.py[cod]
+
+# per-run plot exports, not source
+MATLAB_NIThermoCoupleReading/output/

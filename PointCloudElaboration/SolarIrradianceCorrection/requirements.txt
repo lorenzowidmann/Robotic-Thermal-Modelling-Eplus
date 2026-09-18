@@ -10,3 +10,4 @@
 numpy
 pandas
 pvlib
+matplotlib  # only for sun_incidence.py --plot

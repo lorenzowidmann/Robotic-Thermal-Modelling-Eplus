@@ -8,4 +8,5 @@
 # rosbags is used through ../../TimeSyncCheck/sync_manifest.py to read the
 # LiDAR bag's poses and scans.
 numpy
+opencv-python
 rosbags

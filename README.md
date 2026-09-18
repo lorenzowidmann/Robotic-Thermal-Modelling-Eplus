@@ -168,12 +168,15 @@ Each folder has its own README and `requirements.txt`.
 | [`TimeSyncCheck/`](TimeSyncCheck) | builds `sync_manifest.json` — the LiDAR/ZED/FLIR triplets everything downstream iterates over |
 | [`IntrinsicCalibration/`](IntrinsicCalibration) | ZED and FLIR intrinsics (capture in Python, calibrate in MATLAB) |
 | [`LVTCalibBoardGenearation/`](LVTCalibBoardGenearation) | PCD templates for the LVT2Calib board, with the real board geometry |
+| [`LVTCalibConversion/`](LVTCalibConversion) | gets recorded ZED/FLIR/Livox data into a form LVT2Calib can consume (ROS1 replay, board-hole fill, session split, HAP support) |
 | [`SensorFusionLoader/`](SensorFusionLoader) | **the canonical rig calibration** + generic LiDAR→camera projection. Imported, never run |
 | [`RadiometricCalibration/`](RadiometricCalibration) | FLIR apparent → true temperature, per pixel, per session |
 | [`EmissivityCalculation/`](EmissivityCalculation) | CLIP material classification per superpixel, projected onto FLIR pixels via LiDAR |
 | [`PointCloudElaboration/`](PointCloudElaboration) | filtering → planes → voxels → openings → per-voxel U (5 sub-steps, own README) |
 | [`3DModelPointCloudExtraction/`](3DModelPointCloudExtraction) | boxes → `.osm`, openings as SubSurfaces, and `assign_u_to_osm.py` |
 | [`MATLAB_PointCloudVisualization/`](MATLAB_PointCloudVisualization) | MATLAB viewers for a raw bag, inspection only |
+| [`MATLAB_SensorFusionValidation/`](MATLAB_SensorFusionValidation) | visual check that the LiDAR↔camera extrinsics line up on real scene geometry, not just the calibration board |
+| [`MATLAB_NIThermoCoupleReading/`](MATLAB_NIThermoCoupleReading) | Pt100 contact-temperature acquisition, ground truth for the radiometric correction |
 
 ## Environments
 

@@ -2,6 +2,8 @@
 rosbags
 
 # RecordCheck/ (zed_pose_detect.py, lidar_pose_detect.py, lidar_quality_check.py)
+# and SessionSplit/ (patch_hole_pose.py, pick_hole_patch.py -- split_flir_poses.py
+# and split_zed_poses.py are stdlib-only)
 numpy
 opencv-python
 
