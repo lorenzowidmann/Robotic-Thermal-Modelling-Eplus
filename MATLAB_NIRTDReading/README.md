@@ -1,4 +1,4 @@
-# MATLAB_NIThermoCoupleReading
+# MATLAB_NIRTDReading
 
 Pt100 (RTD, four-wire) ground-truth temperature acquisition via a National
 Instruments USB-9162 DAQ, used to validate `RadiometricCalibration`'s FLIR

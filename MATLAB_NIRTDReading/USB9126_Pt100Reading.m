@@ -36,7 +36,7 @@ while true
 
     set(0,'CurrentFigure',fg);
     plot((k-1)/dq.Rate,data_vect(k,1),"rx");
-    legend("Thermocouple K","Location","west");
+    legend("Pt100 RTD","Location","west");
 
     %ButtonHandle.Position = [.1 .1 .8 .8];
 
@@ -64,7 +64,7 @@ set(fg,'WindowStyle','docked')
 xlabel("Time [s]")
 ylabel("Temperature [C°]")
 plot(time_vect,data_vect(:,1),'rx');
-legend("Thermocouple K","Location","west");
+legend("Pt100 RTD","Location","west");
 
 %% ---------------------------- SAVE DATA ------------------------------ %%
 dataFold = "Data_DynamicCalibration";
