@@ -1,0 +1,64 @@
+# x_passthrough_filter: Remove the refelction noise produced by Livox. No need to be edit if unnecessary. 
+remove_x_min: -1.0
+remove_x_max: 1.0
+
+# voxel filter：use VoxelGrid to downsample and uniform the point cloud. 
+voxel_grid_size: 0.01
+
+# gauss filter: gaussian filter, used in automatic detection of the calibration board. 
+gauss_k_sigma: 3
+gauss_k_thre_rt_sigma: 3
+gauss_k_thre: 0.05
+gauss_conv_radius: 0.02
+
+# cluster: do cluster before the plane segmentation. 
+cluster_tole: 0.05 
+# 0.05 ~ 0.10 
+cluster_size_min: 0.05
+cluster_size_max: 20
+
+# plane segmentation 
+Pseg_dis_thre: 0.02
+Pseg_iter_num: 1000
+Pseg_size_min: 0.1
+
+# RG plane segmentation 
+RG_smooth_thre_deg: 5
+RG_curve_thre: 0.1
+RG_neighbor_n: 30
+
+# statistic filter 
+sor_MeanK: 10
+sor_StddevMulThresh: 1
+
+# intensity filter         
+i_filter_out_min: 0.0
+i_filter_out_max: 30.0 
+# 20 ~ 50 
+
+# boundary estimation: to estimate the surface boundary based on the normal estimation 
+boundEstRad: 30
+normEstRad: 50
+
+# template matching criterion 
+rmse_ukn2tpl_thre: 0.03
+# 0.03 ~ 0.05 
+rmse_tpl2ukn_thre: 0.03
+# 0.03 ~ 0.05 
+
+# center extraction: based on circle extraction
+# Target: board 100x70 cm, 4 fori circolari da 13 cm di diametro (raggio 0.065 m),
+# centri a (+-0.15, +-0.15) m dal centro board.
+# circle_radius = raggio foro; centroid_dis = distanza centro-foro dal centro
+# board = sqrt(0.15^2 + 0.15^2) = 0.212 m (min/max lo bracketano con margine).
+circle_radius: 0.065
+circle_seg_thre: 0.02
+centroid_dis_min: 0.15
+centroid_dis_max: 0.28
+min_centers_found: 4
+
+# gause filter2: used to smooth the accumulated calibration board point cloud.      
+gauss_k_sigma2: 3
+gauss_k_thre_rt_sigma2: 3
+gauss_k_thre2: 0.05
+gauss_conv_radius2: 0.02

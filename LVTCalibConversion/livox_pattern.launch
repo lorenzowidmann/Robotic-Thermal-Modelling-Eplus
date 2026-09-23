@@ -1,0 +1,116 @@
+<launch>
+  <!-- <param name="use_sim_time" value="true"/> -->
+  <param name="use_sim_time" value="false"/>
+  <param name="do_acc_boards" type="bool" value="false"/>
+  <param name="pause_process" type="bool" value="false"/>
+  <param name="end_process" type="bool" value="false"/>
+  <param name="livox_paused" type="bool" value="false"/>
+
+  <!-- <param name="max_frame" type="int" value="10" default="60"/> -->
+
+  <arg name="stdout" default="screen"/>
+  <arg name="cloud_tp" default="/livox/lidar"/>
+  <arg name="use_RG_Pseg" default="false"/>
+  <arg name="use_passthrough_preprocess" default="false"/>
+  <arg name="ns_" default="livox"/>
+  <arg name="cluster_tole" default="0.08"/>
+  <arg name="cluster_size_min" default="0.03"/>
+  <arg name="cluster_size_max" default="1.5"/>
+  <arg name="i_filter_out_max" default="30"/>
+  <arg name="rmse_ukn2tpl_thre" default="0.04"/>
+  <arg name="rmse_tpl2ukn_thre" default="0.03"/>
+
+  <!-- Range del passthrough X/Y/Z, esposti come argomenti (29/07/2026) cosi'
+       si possono cambiare da riga di comando senza modificare questo file.
+       Default allargati per coprire l'intero range di distanza di lavoro
+       previsto per le 9 pose (3.5-6 m), non una singola distanza fissa. -->
+  <arg name="px_min" default="3.0"/>
+  <arg name="px_max" default="6.5"/>
+  <arg name="py_min" default="-1.5"/>
+  <arg name="py_max" default="1.5"/>
+  <arg name="pz_min" default="0.0"/>
+  <arg name="pz_max" default="1.4"/>
+
+
+  <group ns="$(arg ns_)">
+    <group if="$(arg use_passthrough_preprocess)">
+      <node pkg="nodelet" type="nodelet" name="pcl_manager" args="manager" output="$(arg stdout)"/>
+
+      <node pkg="nodelet" type="nodelet" name="pass_through_x" args="load pcl/PassThrough pcl_manager" output="$(arg stdout)">
+        <remap from="~input" to="$(arg cloud_tp)" />
+        <remap from="~output" to="$(arg cloud_tp)/x_filtered" />
+        <rosparam subst_value="true">
+          filter_field_name: x
+          filter_limit_min: $(arg px_min)
+          filter_limit_max: $(arg px_max)
+          filter_limit_negative: False
+          max_queue_size: 1
+          keep_organized: False
+        </rosparam>
+      </node>
+
+      <node pkg="nodelet" type="nodelet" name="pass_through_y" args="load pcl/PassThrough pcl_manager" output="$(arg stdout)">
+        <remap from="~input" to="$(arg cloud_tp)/x_filtered" />
+        <remap from="~output" to="$(arg cloud_tp)/y_filtered" />
+        <rosparam subst_value="true">
+          filter_field_name: y
+          filter_limit_min: $(arg py_min)
+          filter_limit_max: $(arg py_max)
+
+          filter_limit_negative: False
+          max_queue_size: 1
+          keep_organized: False
+        </rosparam>
+      </node>
+
+      <!-- Filtro Z aggiunto (29/07/2026): esclude la scatola/supporto sotto la
+           board, che RANSAC fondeva con la board stessa perché a contatto. -->
+      <node pkg="nodelet" type="nodelet" name="pass_through_z" args="load pcl/PassThrough pcl_manager" output="$(arg stdout)">
+        <remap from="~input" to="$(arg cloud_tp)/y_filtered" />
+        <remap from="~output" to="$(arg cloud_tp)/z_filtered" />
+        <rosparam subst_value="true">
+          filter_field_name: z
+          filter_limit_min: $(arg pz_min)
+          filter_limit_max: $(arg pz_max)
+
+          filter_limit_negative: False
+          max_queue_size: 1
+          keep_organized: False
+        </rosparam>
+      </node>
+    </group>
+    
+    <node pkg="lvt2calib" type="livox_pattern" name="laser_pattern" output="screen">
+      <remap from="~cloud_laser" to="$(arg cloud_tp)/z_filtered" if="$(arg use_passthrough_preprocess)"/>
+      <remap from="~cloud_laser" to="$(arg cloud_tp)" unless="$(arg use_passthrough_preprocess)"/>
+
+      <param name="model_path" type="string" value="$(find lvt2calib)/data/template_pcl/four_circle_boundary.pcd"/>
+    
+      <param name="is_gazebo" type="bool" value="false"/>
+
+      <param name="use_vox_filter" type="bool" value="true"/>
+      <param name="use_gauss_filter" type="bool" value="false"/>
+      <param name="use_statistic_filter" type="bool" value="false"/>
+      <param name="use_i_filter" type="bool" value="false"/>
+      <param name="use_gauss_filter2" type="bool" value="true"/>
+      <param name="queue_size" type="int" value="2"/>
+      <param name="use_RG_Pseg" type="bool" value="$(arg use_RG_Pseg)"/>
+      <param name="ns" type="string" value="$(arg ns_)"/>
+      <param name="if_use_single_board" type="bool" value="true"/>
+
+      <rosparam command="load" file="$(find lvt2calib)/config/lidar_pattern_param.yaml"/>
+      <param name="cluster_tole" value="$(arg cluster_tole)"/>
+      <param name="i_filter_out_max" value="$(arg i_filter_out_max)"/>
+      <param name="rmse_ukn2tpl_thre" value="$(arg rmse_ukn2tpl_thre)"/>
+      <param name="rmse_tpl2ukn_thre" value="$(arg rmse_tpl2ukn_thre)"/>
+      <param name="cluster_size_min" value="$(arg cluster_size_min)"/>
+      <param name="cluster_size_max" value="$(arg cluster_size_max)"/>
+      
+    </node>
+
+    <!-- <node type="rviz" name="rviz_livox" pkg="rviz" args="-d $(find lvt2calib)/rviz/livox_pattern.rviz" /> -->
+    <node type="rviz" name="rviz_$(arg ns_)" pkg="rviz" args="-d $(find lvt2calib)/rviz/$(arg ns_)_pattern.rviz" />
+
+  </group>
+
+</launch>

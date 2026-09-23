@@ -15,6 +15,8 @@ FLIR RJPG frames) into a form **LVT2Calib** (ROS1/Noetic, runs in the
 | `RecordCheck/` | Standalone Python, solo report (nessun file modificato). Controlli di qualita' pre-LVT2Calib: continuita' del bag Livox, pose ZED/LiDAR rilevate, buchi/limiti della board. | Windows host, plain `pip` venv (`requirements.txt` di questa cartella) |
 | `SessionSplit/` | Standalone Python. Divide una sessione ZED/FLIR lunga in singole pose, e corregge un foro rotto da un oggetto di sfondo (`pick_hole_patch.py` + `patch_hole_pose.py`). | Windows host, plain `pip` venv (`requirements.txt` di questa cartella) |
 | `livox_hap_pattern.launch` | Launch file adding **Livox HAP** support to LVT2Calib, which upstream does not ship. Copy into `lvt2calib/launch/lidar/livox/`. | Inside `lvt2calib_gui` container |
+| `livox_pattern.launch` | Modified upstream file, **overwrites** `lvt2calib/launch/lidar/livox_pattern.launch`. Adds the `px_min..pz_max` args and a Z passthrough (required by `livox_hap_pattern.launch`, which passes them — upstream fails with "unused args"); disables `use_gauss_filter` and `use_i_filter`. | Inside `lvt2calib_gui` container |
+| `lidar_pattern_param.yaml` | Modified upstream file, **overwrites** `lvt2calib/config/lidar_pattern_param.yaml`. Board geometry for our target: `circle_radius 0.065` (⌀13 cm holes), `centroid_dis_max 0.28`. | Inside `lvt2calib_gui` container |
 
 Each has its own README with full details (flags, defaults, why they were
 chosen against the lvt2calib source); this file is the map between them.
