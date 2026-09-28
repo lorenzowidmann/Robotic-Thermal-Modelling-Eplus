@@ -6,4 +6,4 @@ __pycache__/
 *.py[cod]
 
 # per-run plot exports, not source
-MATLAB_NIThermoCoupleReading/output/
+MATLAB_NIRTDReading/output/
