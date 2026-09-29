@@ -109,6 +109,76 @@ that split is never hidden downstream.
 - `rig_calibration.yaml` is the single place to update when a calibration is
   redone — nothing downstream hardcodes numbers.
 
+## Before / after correction table (voxel maps)
+
+Compares the 3-D voxel map before the radiometric correction, after it, and
+the correction itself (max / mean / min per case, degrees C), optionally
+against a thermocouple / RTD reading. Needs a session that already went
+through `correct_session.py` (and `estimate_offset.py --apply` if the After
+map should be debiased).
+
+`voxel_consensus.py --stage thermal` only reads per-frame `.npy` files from
+`emissivity_map\<stem>\`, and the apparent (uncorrected) FLIR temperature is
+not there. `prepare_voxel_comparison.py` writes two extra files into each
+`emissivity_map\<stem>\` (nothing existing is overwritten):
+
+| file | content |
+|---|---|
+| `apparent_temperature_masked.npy` | apparent T from the rot180 FLIR `.npy`, NaN where the corrected map is NaN, so all maps cover the same voxels |
+| `emissivity_correction.npy` | `corrected_temperature.npy` minus apparent (deg C), the radiometric correction alone, without the sensor offset |
+
+```powershell
+$S   = "path\to\ZED\<session>\fullrate"
+$BAG = "path\to\Lidar\<bag-folder>"
+
+# 1. Per-frame inputs
+C:\venvs\sensorfusion\Scripts\python.exe prepare_voxel_comparison.py `
+    --session-dir $S --flir-dir path\to\Flir\<session>_rot180
+
+# 2. Voxelize each case into its own folder (same --voxel as the original map)
+C:\venvs\sensorfusion\Scripts\python.exe voxel_consensus.py --stage thermal `
+    --session-dir $S --bag $BAG --voxel 0.20 `
+    --corrected-name apparent_temperature_masked.npy --out-dir $S\voxel_map_before
+C:\venvs\sensorfusion\Scripts\python.exe voxel_consensus.py --stage thermal `
+    --session-dir $S --bag $BAG --voxel 0.20 `
+    --corrected-name emissivity_correction.npy --out-dir $S\voxel_map_emis_corr
+C:\venvs\sensorfusion\Scripts\python.exe voxel_consensus.py --stage thermal `
+    --session-dir $S --bag $BAG --voxel 0.20 `
+    --corrected-name corrected_temperature_debiased.npy --out-dir $S\voxel_map_after_check
+```
+
+```matlab
+% 3. Table: printed, saved as voxel_map_before\voxel_correction_table.csv,
+%    and printed again as a booktabs LaTeX tabular (needs \usepackage{siunitx})
+d = 'path\to\ZED\<session>\fullrate';
+VoxelCorrectionTable(fullfile(d,'voxel_map_before','thermal_voxels.csv'), ...
+    fullfile(d,'voxel_map_after_check','thermal_voxels.csv'), ...
+    'EmissivityOnlyCsv', fullfile(d,'voxel_map_emis_corr','thermal_voxels.csv'), ...
+    'ReferenceC', 22.19, ...                       % optional, adds Reference row + delta column
+    'Roi', [xmin xmax ymin ymax zmin zmax])        % optional, stats only around the RTD
+```
+
+Called with no inputs (Run button), `VoxelCorrectionTable` uses the ground
+truth session A1 (painted metal door, `Zed\20260911_094055`, 22.19 C). Change the
+`%% 0.` block to switch session.
+
+Notes:
+- The "Emissivity correction only" row is a correction (delta T), not a
+  temperature, so it has no delta-from-reference value. Same for the "Bias
+  correction" row, computed per voxel as after - before - emissivity (matched
+  by voxel centre). It is constant, equal to minus `offset_c` in
+  `offset_report.json`, because the sensor offset is one value per session.
+- `voxel_map_after_check` is only a fresh copy of the After map: for a session
+  whose `voxel_map\` is up to date it is byte-identical to
+  `voxel_map\thermal_voxels.csv`, so either can be passed as `afterCsv`.
+- Ground truth sessions (see the offset note in the thesis notes):
+
+| | ZED fullrate | FLIR rot180 | bag | thermocouple |
+|---|---|---|---|---|
+| A1 | `Zed\20260911_094055\fullrate` | `Flir\session_A1_rot180` | `rosbag2_2026_09_11-11_40_48` | 22.19 C |
+| A9 | `Zed\20260911_104224\fullrate` | `Flir\session_A9_rot180` | `rosbag2_2026_09_11-12_41_38` | 22.95 C |
+| A10 | `Zed\20260911_105024\fullrate` | `Flir\session_125010_rot180` | `rosbag2_2026_09_11-12_50_10` | 23.09 C |
+
 ## Adding materials
 
 Add a row to `emissivity_table.csv`:
@@ -156,6 +226,9 @@ or rectified stereo. Requires:
 EmissivityCalculation/
 ├── classify_session.py      # CLI: session pipeline step 1 (SLIC + CLIP per triplet)
 ├── project_to_flir.py       # CLI: session pipeline step 2 (LiDAR-mediated fusion onto FLIR pixels)
+├── voxel_consensus.py       # CLI: multi-view material vote / 3-D thermal voxel map
+├── prepare_voxel_comparison.py  # CLI: before / correction .npy inputs for voxel_consensus.py
+├── VoxelCorrectionTable.m   # MATLAB: before / after / correction table + LaTeX
 ├── emissivity_table.csv     # tabulated emissivity values + CLIP prompts
 ├── emissivity/
 │   ├── table.py             # EmissivityTable: CSV loading + lookup

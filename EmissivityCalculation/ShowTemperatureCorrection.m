@@ -18,6 +18,9 @@ function ShowTemperatureCorrection(sessionDirIn, flirDirIn)
 % LiDAR sample or filled by nearest neighbour (sampled_mask). This makes it
 % immediately clear whether a strange value is measured or interpolated.
 %
+% BEFORE and AFTER share one colour scale (same clim, same colormap), and a
+% third panel maps the radiometric deltaT (see section 5).
+%
 % Keyboard commands:
 %   right / left arrow    next / previous frame
 %   page up / page down   forward / back 10 frames
@@ -26,6 +29,7 @@ function ShowTemperatureCorrection(sessionDirIn, flirDirIn)
 %   s                      show / hide the direct LiDAR samples
 %   b                      show / hide the superpixel boundaries (segment_id)
 %   l                      fixed colour scale over the whole session / per frame
+%   u                      first figure: BEFORE and AFTER on the same / own scale
 %
 % Usage:
 %   ShowTemperatureCorrection                       % default paths, below
@@ -36,8 +40,11 @@ close all
 clc
 
 %% 1. Parameters
-sessionDir = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Zed\20260911_105024\fullrate';
-flirDir    = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Flir\session_125010_rot180';
+% Default session: A9, glass window. Other ground-truth sessions:
+%   A1  painted metal door: Zed\20260911_094055\fullrate + Flir\session_A1_rot180
+%   A10 bare aluminium:     Zed\20260911_105024\fullrate + Flir\session_125010_rot180
+sessionDir = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Zed\20260911_104224\fullrate';
+flirDir    = 'C:\Users\loren\Desktop\Dati_vfinal\NewAcquisitions\AcquistionGroundTruth\Flir\session_A9_rot180';
 
 % Name of the corrected file to read in each emissivity_map\<stem>\, and the
 % materials folder the readout text ("segment N = material") comes from.
@@ -188,20 +195,27 @@ if ~isempty(fMax)
     fprintf('  (real extremes %.1f .. %.1f C, tails excluded)', min(fMin), max(fMax));
 end
 fprintf('\n');
-% sessOffset (and whether correctedName is a debiased file) was already
-% determined above, before the frames were listed -- reused here for the
-% AFTER panel's fixed-scale shift, same as for the readout split below.
+% Two figures are opened (section 5), both driven by the same keys:
+%  - ORIGINAL: the layout before the common-scale change, BEFORE and AFTER
+%    each on their own session scale (AFTER shifted by the sensor offset,
+%    sessOffset, 0 unless correctedName is a debiased file), no deltaT panel.
+%  - COMMON SCALE: BEFORE and AFTER on one shared clim, the union of the
+%    BEFORE range [sessMin sessMax] and the offset-shifted AFTER range, so
+%    equal colours mean equal temperatures, plus the deltaT panel.
+sessClim = [sessMin - max(sessOffset, 0), sessMax - min(sessOffset, 0)];
 
 %% 4. Interface state
 S.frames        = frames;
 S.nFrames       = nFrames;
 S.idx           = 1;
-S.sessClimApp   = [sessMin sessMax];
-S.sessClimCorr  = [sessMin sessMax] - sessOffset;
+S.sessClimApp   = [sessMin sessMax];                 % ORIGINAL figure
+S.sessClimCorr  = [sessMin sessMax] - sessOffset;    % ORIGINAL figure, AFTER on its own scale
+S.sessClim      = sessClim;                          % COMMON SCALE figure
 S.sessOffset      = sessOffset;       % 0 unless correctedName is a debiased file
 S.splitCorrection = splitCorrection;  % true -> readout splits radiometric vs sensor-offset
-S.showZedOverlay  = showZedOverlay;   % true -> 3rd panel, the ZED Mask2Former overlay
+S.showZedOverlay  = showZedOverlay;   % true -> extra first panel, the ZED Mask2Former overlay
 S.lockedClim  = true;    % true = fixed session scale, false = per frame
+S.sameScale   = true;    % ORIGINAL figure: true = BEFORE on the AFTER scale, false = own scale (key u)
 S.showSamples = false;   % overlay of the direct LiDAR samples
 S.showSegs    = true;    % overlay of the superpixel boundaries (SLIC grid)
 S.pinned      = false;   % reading locked on the clicked point
@@ -209,16 +223,62 @@ S.pinXY       = [NaN NaN];
 S.materialDir = materialDir;
 S.cache       = struct();
 
-%% 5. Figure
-S.fig = figure('Name', 'Radiometric correction - apparent vs corrected (consensus)', ...
-               'NumberTitle', 'off', 'Color', 'w', ...
-               'Units', 'normalized', 'Position', [0.08 0.15 0.84 0.70]);
+%% 5. Figures
+% Two independent figures (own guidata, own cache), linked through S.peer:
+% every key, click and hover in one is replayed on the other (onKey,
+% onClick, onMove), so both always show the same frame and point and can
+% be exported side by side for the thesis.
+figOrig   = buildFigure(S, true);
+figCommon = buildFigure(S, false);
+setPeer(figOrig, figCommon);
+setPeer(figCommon, figOrig);
 
+loadFrame(figOrig, 1);
+loadFrame(figCommon, 1);
+
+end % ShowTemperatureCorrection
+
+
+%% ------------------------------------------------------------------ %%
+function setPeer(fig, peer)
+S = guidata(fig);
+S.peer = peer;
+guidata(fig, S);
+end
+
+
+function fig = buildFigure(S, legacy)
+%BUILDFIGURE Creates one viewer window. legacy = true is the ORIGINAL
+% layout (BEFORE / AFTER on separate scales); legacy = false is the COMMON
+% SCALE layout (shared clim + deltaT panel).
+S.legacy = legacy;
+S.peer   = [];
+if legacy
+    figName = 'Radiometric correction - apparent vs corrected (consensus) - ORIGINAL';
+    figPos  = [0.04 0.52 0.70 0.45];
+else
+    figName = 'Radiometric correction - apparent vs corrected (consensus) - COMMON SCALE + deltaT';
+    figPos  = [0.08 0.05 0.84 0.45];
+end
+S.fig = figure('Name', figName, ...
+               'NumberTitle', 'off', 'Color', 'w', ...
+               'Units', 'normalized', 'Position', figPos);
+% Light theme always, whatever the MATLAB desktop theme: with a dark theme
+% the text and axes come out light grey on the white figure background.
+if ~isMATLABReleaseOlderThan("R2025a")
+    theme(S.fig, "light");
+end
+
+% deltaT panel (COMMON SCALE figure only): always the last column,
+% deltaT = T_corrected - T_apparent per pixel on the same FLIR grid.
+% T_corrected here is the radiometric correction only (D.correctedRaw,
+% before the flat sensor-offset subtraction), so the map shows the per-pixel
+% emissivity/atmosphere effect instead of a near-uniform -offset. Diverging
+% colormap centred at zero, symmetric limits from max(abs(deltaT)).
+nCols = 2 + double(S.showZedOverlay) + double(~legacy);
+col = 1;
 if S.showZedOverlay
-    nCols = 3;
-    S.axZed  = subplot(1, nCols, 1, 'Parent', S.fig);
-    S.axApp  = subplot(1, nCols, 2, 'Parent', S.fig);
-    S.axCorr = subplot(1, nCols, 3, 'Parent', S.fig);
+    S.axZed = subplot(1, nCols, col, 'Parent', S.fig); col = col + 1;
     % Plain RGB display: overlay.png already has the segment contours and
     % material labels burned in by classify_session_m2f.py, so this panel
     % needs no colorbar, no cursor marker, no boundary/sample overlay of its
@@ -227,11 +287,9 @@ if S.showZedOverlay
     axis(S.axZed, 'image', 'off');
     disableDefaultInteractivity(S.axZed);
     S.axZed.Toolbar.Visible = 'off';
-else
-    nCols = 2;
-    S.axApp  = subplot(1, nCols, 1, 'Parent', S.fig);
-    S.axCorr = subplot(1, nCols, 2, 'Parent', S.fig);
 end
+S.axApp  = subplot(1, nCols, col, 'Parent', S.fig); col = col + 1;
+S.axCorr = subplot(1, nCols, col, 'Parent', S.fig); col = col + 1;
 
 S.imApp  = imagesc(S.axApp,  zeros(2));
 S.imCorr = imagesc(S.axCorr, zeros(2));
@@ -246,6 +304,8 @@ disableDefaultInteractivity(S.axCorr);
 S.axApp.Toolbar.Visible  = 'off';
 S.axCorr.Toolbar.Visible = 'off';
 colormap(S.fig, inferno_like());
+colormap(S.axApp,  inferno_like());
+colormap(S.axCorr, inferno_like());
 cb1 = colorbar(S.axApp);  cb1.Label.String = 'deg C';
 cb2 = colorbar(S.axCorr); cb2.Label.String = 'deg C';
 
@@ -261,7 +321,22 @@ S.markCorr = plot(S.axCorr, NaN, NaN, '+', 'Color', 'c', 'MarkerSize', 14, 'Line
 hold(S.axApp,  'off');
 hold(S.axCorr, 'off');
 
-% Readout line under the two images.
+if legacy
+    S.axDelta = gobjects(0); S.imDelta = gobjects(0); S.markDelta = gobjects(0);
+else
+    S.axDelta = subplot(1, nCols, col, 'Parent', S.fig);
+    S.imDelta = imagesc(S.axDelta, zeros(2));
+    axis(S.axDelta, 'image');
+    disableDefaultInteractivity(S.axDelta);
+    S.axDelta.Toolbar.Visible = 'off';
+    colormap(S.axDelta, diverging_bwr());
+    cb3 = colorbar(S.axDelta); cb3.Label.String = '\Delta T [°C]';
+    hold(S.axDelta, 'on');
+    S.markDelta = plot(S.axDelta, NaN, NaN, '+', 'Color', 'k', 'MarkerSize', 14, 'LineWidth', 1.5);
+    hold(S.axDelta, 'off');
+end
+
+% Readout line under the images.
 S.readout = annotation(S.fig, 'textbox', [0.02 0.005 0.96 0.085], ...
                        'String', '', 'FontName', 'Consolas', 'FontSize', 10, ...
                        'EdgeColor', [0.8 0.8 0.8], 'BackgroundColor', [0.97 0.97 0.97], ...
@@ -271,10 +346,8 @@ guidata(S.fig, S);
 set(S.fig, 'WindowKeyPressFcn',        @(src, ev) onKey(src, ev), ...
            'WindowButtonMotionFcn',    @(src, ev) onMove(src), ...
            'WindowButtonDownFcn',      @(src, ev) onClick(src));
-
-loadFrame(S.fig, 1);
-
-end % ShowTemperatureCorrection
+fig = S.fig;
+end
 
 
 %% ------------------------------------------------------------------ %%
@@ -337,6 +410,22 @@ set(S.imCorr, 'CData', D.corrected);
 set(S.axApp,  'XLim', [0.5 w+0.5], 'YLim', [0.5 h+0.5]);
 set(S.axCorr, 'XLim', [0.5 w+0.5], 'YLim', [0.5 h+0.5]);
 
+% deltaT panel (COMMON SCALE figure only): radiometric correction only
+% (see buildFigure). NaN pixels are left in CData, same as BEFORE/AFTER.
+if ~S.legacy
+    deltaT = D.correctedRaw - D.apparent;
+    set(S.imDelta, 'CData', deltaT);
+    set(S.axDelta, 'XLim', [0.5 w+0.5], 'YLim', [0.5 h+0.5]);
+    dMax = max(abs(deltaT(:)), [], 'omitnan');
+    if isempty(dMax) || isnan(dMax) || dMax == 0
+        dMax = eps;
+    end
+    clim(S.axDelta, [-dMax dMax]);
+    title(S.axDelta, sprintf('\\DeltaT = corrected - apparent (radiometric only)\nmin %+.2f  max %+.2f  mean %+.2f C', ...
+          min(deltaT(:), [], 'omitnan'), max(deltaT(:), [], 'omitnan'), ...
+          mean(deltaT(:), 'omitnan')), 'FontSize', 9);
+end
+
 if S.showZedOverlay
     if ~isempty(D.zedOverlay)
         [hz, wz, ~] = size(D.zedOverlay);
@@ -352,19 +441,47 @@ if S.showZedOverlay
     end
 end
 
-if S.lockedClim
-    clim(S.axApp,  S.sessClimApp);
-    clim(S.axCorr, S.sessClimCorr);
-    if isequal(S.sessClimApp, S.sessClimCorr)
-        climTag = sprintf('fixed scale %.1f-%.1f C', S.sessClimApp(1), S.sessClimApp(2));
+if S.legacy
+    % ORIGINAL figure: key u switches between BEFORE and AFTER on the same
+    % scale and each on its own scale. The shared scale is the AFTER one: on
+    % the BEFORE scale a debiased AFTER falls below the bottom and turns black,
+    % on the AFTER scale BEFORE just saturates towards the hot end instead.
+    if S.lockedClim
+        climApp = S.sessClimApp;
+        if S.sameScale
+            climApp = S.sessClimCorr;
+        end
+        clim(S.axApp,  climApp);
+        clim(S.axCorr, S.sessClimCorr);
+        if isequal(climApp, S.sessClimCorr)
+            climTag = sprintf('fixed same scale %.1f-%.1f C', climApp(1), climApp(2));
+        else
+            climTag = sprintf('fixed scale (before %.1f-%.1f C, after %.1f-%.1f C)', ...
+                climApp(1), climApp(2), S.sessClimCorr(1), S.sessClimCorr(2));
+        end
+    elseif S.sameScale
+        c = robustClim([D.apparent(:); D.corrected(:)]);
+        clim(S.axApp,  c);
+        clim(S.axCorr, c);
+        climTag = sprintf('per-frame same scale %.1f-%.1f C', c(1), c(2));
     else
-        climTag = sprintf('fixed scale (before %.1f-%.1f C, after %.1f-%.1f C)', ...
-            S.sessClimApp(1), S.sessClimApp(2), S.sessClimCorr(1), S.sessClimCorr(2));
+        clim(S.axApp,  robustClim(D.apparent));
+        clim(S.axCorr, robustClim(D.corrected));
+        climTag = 'per-frame scale';
     end
 else
-    clim(S.axApp,  robustClim(D.apparent));
-    clim(S.axCorr, robustClim(D.corrected));
-    climTag = 'per-frame scale';
+    % COMMON SCALE figure: the same clim on BEFORE and AFTER in both modes.
+    % Per frame, it comes from the combined 1-99 percentiles of both images
+    % (NaN ignored), so a few hot pixels do not wash out the rest.
+    if S.lockedClim
+        c = S.sessClim;
+        climTag = sprintf('fixed common scale %.1f-%.1f C', c(1), c(2));
+    else
+        c = robustClim([D.apparent(:); D.corrected(:)]);
+        climTag = sprintf('per-frame common scale %.1f-%.1f C', c(1), c(2));
+    end
+    clim(S.axApp,  c);
+    clim(S.axCorr, c);
 end
 
 title(S.axApp, sprintf('BEFORE - apparent (raw FLIR)\nmin %.1f  max %.1f  mean %.1f C', ...
@@ -415,6 +532,7 @@ if isnan(xi) || xi < 1 || xi > w || yi < 1 || yi > h
         'Point the mouse over the image to read the temperature before / after the correction.');
     set(S.markApp,  'XData', NaN, 'YData', NaN);
     set(S.markCorr, 'XData', NaN, 'YData', NaN);
+    set(S.markDelta, 'XData', NaN, 'YData', NaN);
     return
 end
 
@@ -494,15 +612,16 @@ end
 set(S.readout, 'String', {line1, line2});
 set(S.markApp,  'XData', xi, 'YData', yi);
 set(S.markCorr, 'XData', xi, 'YData', yi);
+set(S.markDelta, 'XData', xi, 'YData', yi);
 end
 
 
 %% ------------------------------------------------------------------ %%
 function [xi, yi, inside] = cursorPixel(fig)
-%CURSORPIXEL Integer pixel under the cursor, in either of the two axes.
+%CURSORPIXEL Integer pixel under the cursor, in any of the three FLIR axes.
 S = guidata(fig);
 xi = NaN; yi = NaN; inside = false;
-for ax = [S.axApp, S.axCorr]
+for ax = [S.axApp, S.axCorr, S.axDelta]
     p = get(ax, 'CurrentPoint');
     x = round(p(1, 1));
     y = round(p(1, 2));
@@ -519,23 +638,49 @@ function onMove(fig)
 S = guidata(fig);
 if S.pinned, return; end
 [xi, yi] = cursorPixel(fig);
-updateReadout(fig, xi, yi);
+for g = linkedFigs(fig)
+    updateReadout(g, xi, yi);
+end
 end
 
 
 function onClick(fig)
-S = guidata(fig);
 [xi, yi, inside] = cursorPixel(fig);
 if ~inside, return; end
-S.pinned = true;
-S.pinXY = [xi yi];
-guidata(fig, S);
-updateReadout(fig, xi, yi);
+for g = linkedFigs(fig)
+    S = guidata(g);
+    S.pinned = true;
+    S.pinXY = [xi yi];
+    guidata(g, S);
+    updateReadout(g, xi, yi);
+end
+end
+
+
+function figs = linkedFigs(fig)
+%LINKEDFIGS This figure plus its peer (the other layout), if still open.
+S = guidata(fig);
+figs = fig;
+if ~isempty(S.peer) && isgraphics(S.peer)
+    figs = [fig, S.peer];
+end
 end
 
 
 function onKey(fig, ev)
+% Every key is replayed on the peer figure; frame navigation starts from
+% this figure's index for both, so the two windows never drift apart.
 S = guidata(fig);
+for g = linkedFigs(fig)
+    applyKey(g, ev, S.idx);
+end
+end
+
+
+function applyKey(fig, ev, idx0)
+S = guidata(fig);
+S.idx = idx0;
+guidata(fig, S);
 switch ev.Key
     case 'rightarrow', loadFrame(fig, S.idx + 1);
     case 'leftarrow',  loadFrame(fig, S.idx - 1);
@@ -561,6 +706,11 @@ switch ev.Key
         loadFrame(fig, S.idx);
     case 'l'
         S.lockedClim = ~S.lockedClim;
+        guidata(fig, S);
+        loadFrame(fig, S.idx);
+    case 'u'
+        % Only changes the ORIGINAL figure, the COMMON SCALE one is always same scale.
+        S.sameScale = ~S.sameScale;
         guidata(fig, S);
         loadFrame(fig, S.idx);
 end
@@ -636,6 +786,22 @@ anchors = [0.001 0.000 0.014
            0.988 0.998 0.645];
 x = linspace(0, 1, size(anchors, 1));
 xi = linspace(0, 1, 256);
+cmap = [interp1(x, anchors(:,1), xi)', ...
+        interp1(x, anchors(:,2), xi)', ...
+        interp1(x, anchors(:,3), xi)'];
+end
+
+
+function cmap = diverging_bwr()
+%DIVERGING_BWR Blue-white-red palette for the deltaT panel, white at the
+% centre so zero change reads as neutral (odd length, so 0 hits white).
+anchors = [0.019 0.188 0.380
+           0.263 0.576 0.765
+           1.000 1.000 1.000
+           0.839 0.376 0.302
+           0.404 0.000 0.122];
+x = linspace(0, 1, size(anchors, 1));
+xi = linspace(0, 1, 257);
 cmap = [interp1(x, anchors(:,1), xi)', ...
         interp1(x, anchors(:,2), xi)', ...
         interp1(x, anchors(:,3), xi)'];
